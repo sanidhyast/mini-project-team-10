@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RailSearch — Multi-Process Railway Search Engine (Team 10)</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header / Nav -->
+  <header class="top-nav">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="3" width="16" height="16" rx="2"/>
+            <path d="M4 11h16"/>
+            <path d="M12 3v8"/>
+            <path d="m8 19-2 3"/>
+            <path d="m18 22-2-3"/>
+            <circle cx="8" cy="15" r="1"/>
+            <circle cx="16" cy="15" r="1"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">RailSearch <span class="badge team-badge">Team 10</span></h1>
+          <p class="brand-subtitle">Multi-Process Railway Search Engine & Persistent Index</p>
+        </div>
+      </div>
+      <div class="nav-telemetry">
+        <div class="telemetry-pill">
+          <span class="status-dot"></span>
+          <span id="gateway-status">Gateway Online</span>
+        </div>
+        <div class="telemetry-tag" id="index-stats-tag">
+          Index: Ready (< 50ms reload)
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main App Shell -->
+  <main class="app-main">
+    <div class="search-card">
+      <!-- Tabs Switcher -->
+      <div class="tabs-header">
+        <button class="tab-btn active" id="tab-journey" onclick="switchTab('journey')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+            <path d="m12 12 4 4-4 4"/>
+            <path d="M8 16h8"/>
+          </svg>
+          Journey Search (Direct & Connecting)
+        </button>
+        <button class="tab-btn" id="tab-together" onclick="switchTab('together')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          Travel Together (Multi-Origin Group)
+        </button>
+      </div>
+
+      <!-- Tab 1: Journey Search Form -->
+      <div class="tab-content active" id="content-journey">
+        <form id="journey-form" onsubmit="handleJourneySearch(event)">
+          <div class="form-row">
+            <div class="input-group">
+              <label for="src-input">From (Source Station)</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="src-input" placeholder="e.g. SBC or KSR Bengaluru" autocomplete="off" required>
+                <div class="suggestions-list" id="src-suggestions"></div>
+              </div>
+            </div>
+
+            <button type="button" class="swap-btn" title="Swap stations" onclick="swapStations()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m16 3 4 4-4 4"/>
+                <path d="M20 7H4"/>
+                <path d="m8 21-4-4 4-4"/>
+                <path d="M4 17h16"/>
+              </svg>
+            </button>
+
+            <div class="input-group">
+              <label for="dst-input">To (Destination Station)</label>
+              <div class="autocomplete-wrapper">
+                <input type="text" id="dst-input" placeholder="e.g. CSMT or SMET" autocomplete="off" required>
+                <div class="suggestions-list" id="dst-suggestions"></div>
+              </div>
+            </div>
+
+            <div class="input-group date-group">
+              <label for="date-input">Journey Date</label>
+              <input type="date" id="date-input" required>
+            </div>
+
+            <div class="action-group">
+              <button type="submit" class="primary-btn" id="journey-submit-btn">
+                <span>Search Trains</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </form>
+        
+        <!-- Quick Preset Corridors -->
+        <div class="presets-row">
+          <span class="preset-label">Test Corridors:</span>
+          <button type="button" class="preset-chip" onclick="applyPreset('SBC', 'CSMT')">Direct: SBC → CSMT</button>
+          <button type="button" class="preset-chip" onclick="applyPreset('UBL', 'SMET')">Connecting Hub: UBL → SMET (via RRB)</button>
+        </div>
+      </div>
+
+      <!-- Tab 2: Travel Together Form -->
+      <div class="tab-content" id="content-together">
+        <form id="together-form" onsubmit="handleTogetherSearch(event)">
+          <div class="together-grid">
+            <div class="origins-column">
+              <div class="origins-header">
+                <label>Boarding Origins (Min 2 stations)</label>
+                <button type="button" class="secondary-btn-sm" onclick="addOriginInput()">+ Add Origin</button>
+              </div>
+              <div id="origins-container">
+                <div class="origin-input-row" data-index="0">
+                  <span class="origin-index">1</span>
+                  <div class="autocomplete-wrapper">
+                    <input type="text" class="together-origin-input" placeholder="e.g. SBC" autocomplete="off" required>
+                    <div class="suggestions-list"></div>
+                  </div>
+                </div>
+                <div class="origin-input-row" data-index="1">
+                  <span class="origin-index">2</span>
+                  <div class="autocomplete-wrapper">
+                    <input type="text" class="together-origin-input" placeholder="e.g. UBL" autocomplete="off" required>
+                    <div class="suggestions-list"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="destination-column">
+              <div class="input-group">
+                <label for="together-dst-input">Common Destination</label>
+                <div class="autocomplete-wrapper">
+                  <input type="text" id="together-dst-input" placeholder="e.g. CSMT" autocomplete="off" required>
+                  <div class="suggestions-list" id="together-dst-suggestions"></div>
+                </div>
+              </div>
+
+              <div class="input-group">
+                <label for="together-date-input">Journey Date</label>
+                <input type="date" id="together-date-input" required>
+              </div>
+
+              <button type="submit" class="primary-btn full-width" id="together-submit-btn">
+                <span>Find Common Trains</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="m9 18 6-6-6-6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="presets-row">
+          <span class="preset-label">Preset:</span>
+          <button type="button" class="preset-chip" onclick="applyTogetherPreset(['SBC', 'UBL'], 'CSMT')">Group: ['SBC', 'UBL'] → CSMT</button>
+          <button type="button" class="preset-chip" onclick="applyTogetherPreset(['SBC', 'DVG', 'UBL'], 'CSMT')">Group 3: ['SBC', 'DVG', 'UBL'] → CSMT</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Filter & Mode Status Banner -->
+    <div class="status-banner" id="status-banner" style="display: none;">
+      <div class="banner-left">
+        <span class="mode-badge" id="banner-mode-badge">DIRECT</span>
+        <span class="banner-text" id="banner-text">Showing direct train routes</span>
+      </div>
+      <div class="banner-right">
+        <span class="latency-pill" id="banner-latency">12 ms</span>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="loading-state" id="loading-state" style="display: none;">
+      <div class="spinner"></div>
+      <p id="loading-text">Executing Multi-Process Route Computation...</p>
+      <div class="worker-pill" id="loading-worker-info">Dispatched to E1 Worker Pool</div>
+    </div>
+
+    <!-- Results Section -->
+    <section class="results-container" id="results-container">
+      <div class="empty-state" id="initial-empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <h3>Ready to Search</h3>
+        <p>Choose an origin and destination to search direct trains or bounded 2-leg connecting journeys.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Telemetry Drawer / Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <div class="telemetry-item">
+        <span class="label">Engine Processes:</span>
+        <span class="value" id="proc-status">P1 (Gateway) · P2 (Supervisor) · P3 (Worker Pool) · P4 (DBMS)</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">Buffer Compliance:</span>
+        <span class="value highlight">100% (Strict ≥ 30m)</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">Index Reload:</span>
+        <span class="value highlight" id="index-reload-stat">< 50ms Persistent Snapshot</span>
+      </div>
+      <div class="telemetry-item">
+        <span class="label">Active Worker PID:</span>
+        <span class="value" id="worker-pid-stat">—</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
