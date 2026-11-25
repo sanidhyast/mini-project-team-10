@@ -628,6 +628,19 @@ body {
   border-radius: 9999px;
 }
 
+.distance-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  border: 1px solid #bbf7d0;
+}
+
 /* Journey Schedule Bar */
 .journey-schedule {
   display: flex;

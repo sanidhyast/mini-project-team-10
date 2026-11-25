@@ -1,11 +1,3 @@
-"""
-Engine E1 — Journey & Route Computation Worker Pool (Process Pool P3 · DSA & Discrete Math)
-Consumes SearchTask payloads from IPC queue and executes:
-1. Direct Search (Set intersection + sequence filter + day match)
-2. Algorithm A: Two-Leg Connecting Search (Bounded BFS to depth 2, strict >= 30m buffer, min-heap priority queue)
-3. Algorithm B: Travel Together Search (Multi-origin intersection, max(stop_seq) joining station & time)
-"""
-
 import os
 import sys
 import time
@@ -19,7 +11,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [E1-WORKER] %(messag
 DAYS_MAP = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
 
 def time_to_min(time_str: str) -> int:
-    """Converts HH:MM or HH:MM:SS string to continuous minutes within day."""
     if not time_str:
         return 0
     parts = time_str.strip().split(":")
@@ -31,25 +22,17 @@ def time_to_min(time_str: str) -> int:
         return 0
 
 def min_to_time(minutes: int) -> str:
-    """Converts continuous minutes to HH:MM format."""
     hh = (minutes // 60) % 24
     mm = minutes % 60
     return f"{hh:02d}:{mm:02d}"
 
 def get_day_of_week(date_str: str) -> str:
-    """Returns 3-letter uppercase day of week (MON-SUN) from YYYY-MM-DD."""
     dt = datetime.fromisoformat(date_str.strip())
     return DAYS_MAP[dt.weekday()]
 
 def is_train_running(running_days: Set[str], req_date_str: str, stop_day_no: int) -> bool:
-    """
-    Checks if train runs such that it arrives at a station on req_date_str.
-    stop_day_no is 1-indexed (Day 1, Day 2...).
-    If passenger boards on req_date_str at Day stop_day_no, the train began its journey
-    (stop_day_no - 1) days earlier.
-    """
     if not running_days:
-        return True # Default assume runs daily if not specified
+        return True  # Default assume runs daily if not specified
     
     # Calculate starting day of week
     from datetime import timedelta
@@ -58,14 +41,10 @@ def is_train_running(running_days: Set[str], req_date_str: str, stop_day_no: int
     start_dow = DAYS_MAP[start_dt.weekday()]
     return start_dow in running_days
 
-# ================= 1. DIRECT JOURNEY SEARCH =================
+# DIRECT JOURNEY SEARCH
 
 def search_direct(source: str, destination: str, date_str: str, index_service) -> List[Dict[str, Any]]:
-    """
-    Direct Search:
-    Hash-map lookup of trains at source and destination, set intersection,
-    filter by stop_seq(source) < stop_seq(destination) and RUNNING_DAY matching requested date.
-    """
+   
     src = source.strip().upper()
     dst = destination.strip().upper()
 
@@ -111,6 +90,10 @@ def search_direct(source: str, destination: str, date_str: str, index_service) -
         dur_h = duration_min // 60
         dur_m = duration_min % 60
 
+        s_dist = float(s_stop.get("distance_km") or 0.0)
+        d_dist = float(d_stop.get("distance_km") or 0.0)
+        dist_km = round(max(0.0, d_dist - s_dist), 1)
+
         train_name = index_service.trains.get(t_no, {}).get("train_name", f"Train {t_no}")
         src_info = index_service.stations.get(src, {})
         dst_info = index_service.stations.get(dst, {})
@@ -129,27 +112,19 @@ def search_direct(source: str, destination: str, date_str: str, index_service) -
             "arrival_day_no": d_stop["day_no"],
             "duration_min": duration_min,
             "duration_formatted": f"{dur_h}h {dur_m}m",
+            "distance_km": dist_km,
+            "distance_formatted": f"{dist_km} km",
             "stops_count": d_stop["stop_seq"] - s_stop["stop_seq"],
             "running_days": sorted(list(t_running))
         })
 
-    # Sort results by duration, then departure time
-    results.sort(key=lambda r: (r["duration_min"], r["departure_time"]))
+    # Sort results by distance, then duration, then departure time
+    results.sort(key=lambda r: (r["distance_km"], r["duration_min"], r["departure_time"]))
     return results
 
-# ================= 2. ALGORITHM A: TWO-LEG CONNECTING SEARCH =================
+#2. ALGORITHM A: TWO-LEG CONNECTING SEARCH
 
 def search_connecting(source: str, destination: str, date_str: str, index_service, max_results: int = 10) -> List[Dict[str, Any]]:
-    """
-    Algorithm A — Two-Leg Connecting Search:
-    - Bounded BFS to depth 2 (max 1 transfer / 2 legs).
-    - Forward reachable set F from S.
-    - Backward reachable set B to D.
-    - Candidate transfer hubs = stations(F) ∩ stations(B).
-    - Enforce Transfer Buffer Rule (NFR-03): layover >= 30 minutes!
-    - Push feasible journeys into min-heap ordered by (totalDurationMin, waitingMin, legCount).
-    - Return top-K ranked results.
-    """
     src = source.strip().upper()
     dst = destination.strip().upper()
 
@@ -269,6 +244,17 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
                 total_duration_min = leg1_dur + layover_min + leg2_dur
 
+                # Distance calculation for both legs
+                leg1_s_dist = float(s_stop.get("distance_km") or 0.0)
+                leg1_x_dist = float(x_stop1.get("distance_km") or 0.0)
+                leg1_dist = round(max(0.0, leg1_x_dist - leg1_s_dist), 1)
+
+                leg2_x_dist = float(x_stop2.get("distance_km") or 0.0)
+                leg2_d_dist = float(d_stop.get("distance_km") or 0.0)
+                leg2_dist = round(max(0.0, leg2_d_dist - leg2_x_dist), 1)
+
+                total_distance_km = round(leg1_dist + leg2_dist, 1)
+
                 sig = (t1, hub, t2)
                 if sig in seen_journey_signatures:
                     continue
@@ -280,6 +266,8 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
                 journey = {
                     "mode": "CONNECTING",
+                    "total_distance_km": total_distance_km,
+                    "total_distance_formatted": f"{total_distance_km} km",
                     "total_duration_min": total_duration_min,
                     "total_duration_formatted": f"{total_duration_min // 60}h {total_duration_min % 60}m",
                     "waiting_min": layover_min,
@@ -297,7 +285,9 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
                         "departure_time": s_stop["departure_time"],
                         "arrival_time": x_stop1["arrival_time"],
                         "duration_min": leg1_dur,
-                        "duration_formatted": f"{leg1_dur // 60}h {leg1_dur % 60}m"
+                        "duration_formatted": f"{leg1_dur // 60}h {leg1_dur % 60}m",
+                        "distance_km": leg1_dist,
+                        "distance_formatted": f"{leg1_dist} km"
                     },
                     "leg2": {
                         "train_no": t2,
@@ -309,13 +299,16 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
                         "departure_time": x_stop2["departure_time"],
                         "arrival_time": d_stop["arrival_time"],
                         "duration_min": leg2_dur,
-                        "duration_formatted": f"{leg2_dur // 60}h {leg2_dur % 60}m"
+                        "duration_formatted": f"{leg2_dur // 60}h {leg2_dur % 60}m",
+                        "distance_km": leg2_dist,
+                        "distance_formatted": f"{leg2_dist} km"
                     }
                 }
 
-                # Push to min-heap ordered by (totalDurationMin, waitingMin, legCount)
+                # Push to min-heap ordered by (total_distance_km, total_duration_min, layover_min, counter, journey)
+                # Primary ranking: MINIMUM TOTAL DISTANCE!
                 counter += 1
-                heapq.heappush(min_heap, (total_duration_min, layover_min, 2, counter, journey))
+                heapq.heappush(min_heap, (total_distance_km, total_duration_min, layover_min, counter, journey))
 
     # Pop top-K ranked journeys from min-heap
     ranked_results = []
@@ -328,20 +321,9 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
     return ranked_results
 
-# ================= 3. ALGORITHM B: TRAVEL TOGETHER SEARCH =================
-
+# 3. ALGORITHM B: TRAVEL TOGETHER SEARCH 
 def search_travel_together(origins: List[str], destination: str, date_str: str, index_service) -> Dict[str, Any]:
-    """
-    Algorithm B — Travel Together Search (Multi-Origin Group Search):
-    - Input: origins = [O1, O2, ..., On] (n >= 2), destination = D, date.
-    - For each origin Oi, find set Ti of trains stopping at Oi and later at D on date.
-    - Compute Common = T1 ∩ T2 ∩ ... ∩ Tn.
-    - If Common is empty, return NO_COMMON.
-    - For each train T in Common:
-      - joiningStation = origin Oi with largest stop_seq on train T.
-      - joiningTime = departure time of train T at joiningStation.
-    - Sort results by joining time / total duration to D.
-    """
+   
     dst = destination.strip().upper()
     clean_origins = [o.strip().upper() for o in origins]
 
@@ -355,7 +337,8 @@ def search_travel_together(origins: List[str], destination: str, date_str: str, 
 
         trains_for_origin = set()
         st_stops = index_service.station_trains.get(origin, [])
-        for t_no, seq, _, _, _ in st_stops:
+        for item in st_stops:
+            t_no = item[0]
             d_stop = index_service.train_stop_map.get(t_no, {}).get(dst)
             s_stop = index_service.train_stop_map.get(t_no, {}).get(origin)
 
@@ -449,13 +432,10 @@ def search_travel_together(origins: List[str], destination: str, date_str: str, 
     results.sort(key=lambda r: (r["joining_time"], r["together_duration_min"]))
     return {"status": "SUCCESS", "results": results}
 
-# ================= 4. IPC WORKER PROCESS TARGET =================
+# 4. IPC WORKER PROCESS TARGET
 
 def worker_process_main(task_queue, response_queue, worker_id: int):
-    """
-    E1 Worker Process consumer loop:
-    Consumes SearchTask dicts, executes computation via in-memory index, and returns SearchResponse.
-    """
+
     logging.info(f"Worker PID {os.getpid()} (Worker-{worker_id}) started and loading index...")
     from engines.e2_data_index import get_data_index_service
     index_service = get_data_index_service()

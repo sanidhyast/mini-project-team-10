@@ -116,6 +116,14 @@ def build_datasets():
                         arr = (row.get("arrival_time") or "").strip()
                         dep = (row.get("departure_time") or "").strip()
 
+                        # Distance from source: if missing or 0 at seq > 1, calculate proportional rail km
+                        try:
+                            dist = float(row.get("distance_from_source") or 0.0)
+                            if dist == 0.0 and seq > 1:
+                                dist = round((seq - 1) * 28.0, 1)
+                        except (ValueError, TypeError):
+                            dist = round((seq - 1) * 28.0, 1)
+
                         if arr and len(arr) == 5:
                             arr += ":00"
                         if dep and len(dep) == 5:
@@ -133,7 +141,8 @@ def build_datasets():
                                 "stop_seq": seq,
                                 "arrival_time": arr,
                                 "departure_time": dep,
-                                "day_no": day_no
+                                "day_no": day_no,
+                                "distance_km": dist
                             })
 
             logging.info(f"Loaded {len(stations)} stations, {len(trains)} trains, {len(train_stops)} stops from raw data.")
@@ -152,16 +161,16 @@ def build_datasets():
         running_days.append({"train_no": "11302", "day_of_week": d})
 
     udyan_stops = [
-        {"station_code": "SBC", "stop_seq": 1, "arr": "20:45:00", "dep": "20:45:00", "day": 1},
-        {"station_code": "YPR", "stop_seq": 2, "arr": "20:55:00", "dep": "20:57:00", "day": 1},
-        {"station_code": "ASK", "stop_seq": 3, "arr": "23:20:00", "dep": "23:25:00", "day": 1},
-        {"station_code": "RRB", "stop_seq": 4, "arr": "00:08:00", "dep": "00:10:00", "day": 2},
-        {"station_code": "DVG", "stop_seq": 5, "arr": "01:40:00", "dep": "01:42:00", "day": 2},
-        {"station_code": "UBL", "stop_seq": 6, "arr": "04:15:00", "dep": "04:25:00", "day": 2},
-        {"station_code": "BGM", "stop_seq": 7, "arr": "07:00:00", "dep": "07:05:00", "day": 2},
-        {"station_code": "PUNE", "stop_seq": 8, "arr": "15:45:00", "dep": "15:50:00", "day": 2},
-        {"station_code": "KYN", "stop_seq": 9, "arr": "18:40:00", "dep": "18:43:00", "day": 2},
-        {"station_code": "CSMT", "stop_seq": 10, "arr": "20:15:00", "dep": "20:15:00", "day": 2},
+        {"station_code": "SBC", "stop_seq": 1, "arr": "20:45:00", "dep": "20:45:00", "day": 1, "dist": 0.0},
+        {"station_code": "YPR", "stop_seq": 2, "arr": "20:55:00", "dep": "20:57:00", "day": 1, "dist": 6.0},
+        {"station_code": "ASK", "stop_seq": 3, "arr": "23:20:00", "dep": "23:25:00", "day": 1, "dist": 166.0},
+        {"station_code": "RRB", "stop_seq": 4, "arr": "00:08:00", "dep": "00:10:00", "day": 2, "dist": 211.0},
+        {"station_code": "DVG", "stop_seq": 5, "arr": "01:40:00", "dep": "01:42:00", "day": 2, "dist": 274.0},
+        {"station_code": "UBL", "stop_seq": 6, "arr": "04:15:00", "dep": "04:25:00", "day": 2, "dist": 417.0},
+        {"station_code": "BGM", "stop_seq": 7, "arr": "07:00:00", "dep": "07:05:00", "day": 2, "dist": 559.0},
+        {"station_code": "PUNE", "stop_seq": 8, "arr": "15:45:00", "dep": "15:50:00", "day": 2, "dist": 947.0},
+        {"station_code": "KYN", "stop_seq": 9, "arr": "18:40:00", "dep": "18:43:00", "day": 2, "dist": 1085.0},
+        {"station_code": "CSMT", "stop_seq": 10, "arr": "20:15:00", "dep": "20:15:00", "day": 2, "dist": 1139.0},
     ]
     # Remove any existing 11302 stops and add deterministic
     train_stops = [s for s in train_stops if s["train_no"] != "11302"]
@@ -173,7 +182,8 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Corridor 2: Connecting Corridor UBL -> SMET (No direct train between UBL and SMET)
@@ -184,10 +194,10 @@ def build_datasets():
         running_days.append({"train_no": "12079", "day_of_week": d})
     train_stops = [s for s in train_stops if s["train_no"] != "12079"]
     for s in [
-        {"station_code": "UBL", "stop_seq": 1, "arr": "06:00:00", "dep": "06:00:00", "day": 1},
-        {"station_code": "DVG", "stop_seq": 2, "arr": "07:30:00", "dep": "07:35:00", "day": 1},
-        {"station_code": "RRB", "stop_seq": 3, "arr": "09:10:00", "dep": "09:15:00", "day": 1},
-        {"station_code": "ASK", "stop_seq": 4, "arr": "10:00:00", "dep": "10:05:00", "day": 1},
+        {"station_code": "UBL", "stop_seq": 1, "arr": "06:00:00", "dep": "06:00:00", "day": 1, "dist": 0.0},
+        {"station_code": "DVG", "stop_seq": 2, "arr": "07:30:00", "dep": "07:35:00", "day": 1, "dist": 143.0},
+        {"station_code": "RRB", "stop_seq": 3, "arr": "09:10:00", "dep": "09:15:00", "day": 1, "dist": 206.0},
+        {"station_code": "ASK", "stop_seq": 4, "arr": "10:00:00", "dep": "10:05:00", "day": 1, "dist": 251.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -196,19 +206,20 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Leg 2 via RRB: Train 56240 (Birur-Shivamogga Passenger)
     # Departs RRB at 10:00:00 (Layover at RRB = 10:00 - 09:10 = 50 min >= 30 min -> VALID)
-    # Arrives SMET at 11:05:00 (Total duration from UBL = 305 min)
+    # Arrives SMET at 11:05:00 (Distance: 63 km, Total distance from UBL = 206 + 63 = 269 km -> RANK #1 MINIMUM DISTANCE)
     trains["56240"] = {"train_no": "56240", "train_name": "Birur Shivamogga Passenger"}
     for d in DAYS_ALL:
         running_days.append({"train_no": "56240", "day_of_week": d})
     train_stops = [s for s in train_stops if s["train_no"] != "56240"]
     for s in [
-        {"station_code": "RRB", "stop_seq": 1, "arr": "10:00:00", "dep": "10:00:00", "day": 1},
-        {"station_code": "SMET", "stop_seq": 2, "arr": "11:05:00", "dep": "11:05:00", "day": 1},
+        {"station_code": "RRB", "stop_seq": 1, "arr": "10:00:00", "dep": "10:00:00", "day": 1, "dist": 0.0},
+        {"station_code": "SMET", "stop_seq": 2, "arr": "11:05:00", "dep": "11:05:00", "day": 1, "dist": 63.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -217,19 +228,20 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Leg 2 Alternative via DVG: Train 17315 (Davangere-Shivamogga Link)
     # Departs DVG at 08:45:00 (Layover at DVG = 08:45 - 07:30 = 75 min >= 30 min -> VALID)
-    # Arrives SMET at 11:45:00 (Total duration from UBL = 345 min -> Ranked #2 by Min-Heap)
+    # Arrives SMET at 11:45:00 (Distance: 142 km, Total distance from UBL = 143 + 142 = 285 km -> RANK #2)
     trains["17315"] = {"train_no": "17315", "train_name": "Davangere Shimoga Link"}
     for d in DAYS_ALL:
         running_days.append({"train_no": "17315", "day_of_week": d})
     train_stops = [s for s in train_stops if s["train_no"] != "17315"]
     for s in [
-        {"station_code": "DVG", "stop_seq": 1, "arr": "08:45:00", "dep": "08:45:00", "day": 1},
-        {"station_code": "SMET", "stop_seq": 2, "arr": "11:45:00", "dep": "11:45:00", "day": 1},
+        {"station_code": "DVG", "stop_seq": 1, "arr": "08:45:00", "dep": "08:45:00", "day": 1, "dist": 0.0},
+        {"station_code": "SMET", "stop_seq": 2, "arr": "11:45:00", "dep": "11:45:00", "day": 1, "dist": 142.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -238,7 +250,8 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Buffer Rejection Test via ASK: Train 16205 (Arsikere-Shivamogga Shuttle)
@@ -249,8 +262,8 @@ def build_datasets():
         running_days.append({"train_no": "16205", "day_of_week": d})
     train_stops = [s for s in train_stops if s["train_no"] != "16205"]
     for s in [
-        {"station_code": "ASK", "stop_seq": 1, "arr": "10:15:00", "dep": "10:15:00", "day": 1},
-        {"station_code": "SMET", "stop_seq": 2, "arr": "11:30:00", "dep": "11:30:00", "day": 1},
+        {"station_code": "ASK", "stop_seq": 1, "arr": "10:15:00", "dep": "10:15:00", "day": 1, "dist": 0.0},
+        {"station_code": "SMET", "stop_seq": 2, "arr": "11:30:00", "dep": "11:30:00", "day": 1, "dist": 102.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -259,7 +272,8 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Special Train: 99901 (Sunday Only express SBC -> CSMT)
@@ -267,8 +281,8 @@ def build_datasets():
     running_days.append({"train_no": "99901", "day_of_week": "SUN"})
     train_stops = [s for s in train_stops if s["train_no"] != "99901"]
     for s in [
-        {"station_code": "SBC", "stop_seq": 1, "arr": "10:00:00", "dep": "10:00:00", "day": 1},
-        {"station_code": "CSMT", "stop_seq": 2, "arr": "22:00:00", "dep": "22:00:00", "day": 1},
+        {"station_code": "SBC", "stop_seq": 1, "arr": "10:00:00", "dep": "10:00:00", "day": 1, "dist": 0.0},
+        {"station_code": "CSMT", "stop_seq": 2, "arr": "22:00:00", "dep": "22:00:00", "day": 1, "dist": 1139.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -277,7 +291,8 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Day-crossing midnight test train: 99902 (Leaves SBC at 23:45 Day 1, arrives DVG at 04:30 Day 2)
@@ -286,8 +301,8 @@ def build_datasets():
         running_days.append({"train_no": "99902", "day_of_week": d})
     train_stops = [s for s in train_stops if s["train_no"] != "99902"]
     for s in [
-        {"station_code": "SBC", "stop_seq": 1, "arr": "23:45:00", "dep": "23:45:00", "day": 1},
-        {"station_code": "DVG", "stop_seq": 2, "arr": "04:30:00", "dep": "04:30:00", "day": 2},
+        {"station_code": "SBC", "stop_seq": 1, "arr": "23:45:00", "dep": "23:45:00", "day": 1, "dist": 0.0},
+        {"station_code": "DVG", "stop_seq": 2, "arr": "04:30:00", "dep": "04:30:00", "day": 2, "dist": 274.0},
     ]:
         train_stops.append({
             "stop_id": len(train_stops) + 1,
@@ -296,7 +311,8 @@ def build_datasets():
             "stop_seq": s["stop_seq"],
             "arrival_time": s["arr"],
             "departure_time": s["dep"],
-            "day_no": s["day"]
+            "day_no": s["day"],
+            "distance_km": s["dist"]
         })
 
     # Ensure deliberate malformed rows exist in a test staging file to verify DATA_ISSUE logging
@@ -328,7 +344,7 @@ def build_datasets():
 
     logging.info(f"Writing {TRAIN_STOPS_CSV} ({len(valid_train_stops)} records)...")
     with open(TRAIN_STOPS_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["stop_id", "train_no", "station_code", "stop_seq", "arrival_time", "departure_time", "day_no"])
+        writer = csv.DictWriter(f, fieldnames=["stop_id", "train_no", "station_code", "stop_seq", "arrival_time", "departure_time", "day_no", "distance_km"])
         writer.writeheader()
         writer.writerows(valid_train_stops)
 

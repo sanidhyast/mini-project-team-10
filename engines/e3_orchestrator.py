@@ -1,16 +1,3 @@
-"""
-Engine E3 — Search Process & Validation Coordinator (Process P2 · OS & SE)
-Responsibilities:
-1. Strict Request Validation (immediate 400 rejection before worker dispatch).
-2. Explicit State Machine Tracking:
-   RECEIVED -> VALIDATING -> [REJECTED | VALIDATED] ->
-   [SEARCHING_DIRECT -> (COMPLETED | SEARCHING_CONNECTING)] | [SEARCHING_TOGETHER] ->
-   [COMPLETED | NO_RESULT | FAILED] -> RESPONDED.
-3. IPC FIFO Queue Dispatch & Worker Watchdog Supervisor:
-   Enforces 3.0s timeout per task, detects crashed/hung worker PIDs,
-   automatically respawns workers, and returns controlled 503 without crashing server.
-"""
-
 import os
 import sys
 import time
@@ -73,29 +60,22 @@ class SearchOrchestrator:
             self.workers[i + 1] = p
             logging.info(f"Spawned E1 Worker-{i + 1} with PID {p.pid}")
 
-    def _respawn_worker(self, worker_id: int):
-        """Kills hung/crashed worker process and spawns a fresh replacement."""
-        old_proc = self.workers.get(worker_id)
-        if old_proc:
+    def _respawn_all_workers(self):
+        """Kills all hung workers, recreates IPC queues to prevent pipe deadlock, and spawns fresh workers."""
+        for w_id, proc in list(self.workers.items()):
             try:
-                if old_proc.is_alive():
-                    logging.warning(f"Terminating hung Worker-{worker_id} (PID {old_proc.pid})...")
-                    old_proc.terminate()
-                    old_proc.join(timeout=0.2)
-                    if old_proc.is_alive():
-                        old_proc.kill()
+                if proc.is_alive():
+                    logging.warning(f"Terminating hung Worker-{w_id} (PID {proc.pid})...")
+                    proc.terminate()
+                    proc.join(timeout=0.2)
+                    if proc.is_alive():
+                        proc.kill()
             except Exception as e:
-                logging.error(f"Error terminating worker {worker_id}: {e}")
-
-        from engines.e1_route_compute import worker_process_main
-        new_proc = mp.Process(
-            target=worker_process_main,
-            args=(self.task_queue, self.response_queue, worker_id),
-            daemon=True
-        )
-        new_proc.start()
-        self.workers[worker_id] = new_proc
-        logging.info(f"Successfully respawned E1 Worker-{worker_id} with new PID {new_proc.pid}")
+                logging.error(f"Error terminating worker {w_id}: {e}")
+        
+        self.workers.clear()
+        self._start_worker_pool()
+        logging.info("Supervisor successfully respawned clean worker pool with fresh IPC queues.")
 
     def validate_journey_request(self, source: Optional[str], destination: Optional[str], date_str: Optional[str]) -> Tuple[bool, Optional[str]]:
         """Strict validation of journey search parameters."""
@@ -221,9 +201,8 @@ class SearchOrchestrator:
         if response is None:
             sm.transition("FAILED")
             sm.transition("RESPONDED")
-            logging.error(f"[Watchdog] Task {req_id} timed out after {self.timeout_sec}s! Respawning hung worker...")
-            # Respawn worker 1 (primary)
-            self._respawn_worker(1)
+            logging.error(f"[Watchdog] Task {req_id} timed out after {self.timeout_sec}s! Respawning hung worker pool...")
+            self._respawn_all_workers()
             return {
                 "status_code": 503,
                 "status": "INTERNAL_ERROR",
@@ -319,8 +298,8 @@ class SearchOrchestrator:
         if response is None:
             sm.transition("FAILED")
             sm.transition("RESPONDED")
-            logging.error(f"[Watchdog] Task {req_id} timed out after {self.timeout_sec}s! Respawning worker...")
-            self._respawn_worker(1)
+            logging.error(f"[Watchdog] Task {req_id} timed out after {self.timeout_sec}s! Respawning worker pool...")
+            self._respawn_all_workers()
             return {
                 "status_code": 503,
                 "status": "INTERNAL_ERROR",

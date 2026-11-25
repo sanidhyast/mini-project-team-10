@@ -1,8 +1,3 @@
-"""
-Engine E2 — Railway Data & Persistent Index Service (Process P4 · DBMS)
-Sole writer to SQLite database (railsearch.db) and disk-persisted inverted index (index_v1.bin).
-Provides high-performance < 50ms snapshot deserialization and validated CRUD operations.
-"""
 
 import os
 import sys
@@ -55,9 +50,16 @@ class DataIndexService:
         conn.execute("PRAGMA synchronous = NORMAL;")
         return conn
 
-    def create_schema(self, conn: sqlite3.Connection):
+    def create_schema(self, conn: sqlite3.Connection, force_drop: bool = False):
         """Creates the 6 core relational tables as per Master Specification."""
         with conn:
+            if force_drop:
+                conn.executescript("""
+                DROP TABLE IF EXISTS TRAIN_STOP;
+                DROP TABLE IF EXISTS RUNNING_DAY;
+                DROP TABLE IF EXISTS TRAIN;
+                DROP TABLE IF EXISTS STATION;
+                """)
             conn.executescript("""
             CREATE TABLE IF NOT EXISTS STATION (
                 station_code TEXT PRIMARY KEY,
@@ -78,6 +80,7 @@ class DataIndexService:
                 arrival_time TEXT,
                 departure_time TEXT,
                 day_no INTEGER DEFAULT 1,
+                distance_km REAL DEFAULT 0.0,
                 UNIQUE(train_no, stop_seq),
                 UNIQUE(train_no, station_code),
                 FOREIGN KEY(train_no) REFERENCES TRAIN(train_no),
@@ -139,7 +142,7 @@ class DataIndexService:
     def import_and_build_index(self, force_rebuild: bool = False):
         """Strict Data Validation on Import: Validates every row, logs issues, builds DB and persistent index."""
         conn = self.get_connection()
-        self.create_schema(conn)
+        self.create_schema(conn, force_drop=force_rebuild)
 
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM STATION")
@@ -251,6 +254,7 @@ class DataIndexService:
                     try:
                         seq = int(row.get("stop_seq") or 0)
                         day_no = int(row.get("day_no") or 1)
+                        dist = float(row.get("distance_km") or 0.0)
                     except (ValueError, TypeError):
                         self.log_issue(conn, "TRAIN_STOP", str(row), "INVALID_INTEGER_FIELDS")
                         continue
@@ -280,13 +284,13 @@ class DataIndexService:
 
                     seen_train_seq.add(key_seq)
                     seen_train_station.add(key_st)
-                    valid_stops.append((t_no, st_code, seq, arr, dep, day_no))
+                    valid_stops.append((t_no, st_code, seq, arr, dep, day_no, dist))
 
         with conn:
             conn.executemany(
                 """INSERT OR IGNORE INTO TRAIN_STOP 
-                   (train_no, station_code, stop_seq, arrival_time, departure_time, day_no) 
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (train_no, station_code, stop_seq, arrival_time, departure_time, day_no, distance_km) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 valid_stops
             )
         logging.info(f"Imported {len(valid_stops)} valid train stops.")
@@ -299,10 +303,10 @@ class DataIndexService:
                        for t_no, val in valid_trains.items()}
         
         # Select active express/corridor trains to index into memory for < 50ms reload
-        # Guaranteed inclusion of all CORE_TEST_TRAINS + top 250 express trains
+        # Guaranteed inclusion of all CORE_TEST_TRAINS + top 100 express trains
         active_train_set = set(CORE_TEST_TRAINS)
         for t_no in valid_trains:
-            if len(active_train_set) >= 250:
+            if len(active_train_set) >= 100:
                 break
             active_train_set.add(t_no)
 
@@ -311,13 +315,13 @@ class DataIndexService:
         self.train_stop_map = {}
         
         for stop in valid_stops:
-            t_no, st_code, seq, arr, dep, day_no = stop
+            t_no, st_code, seq, arr, dep, day_no, dist = stop
             if t_no not in active_train_set:
                 continue
             
             if st_code not in self.station_trains:
                 self.station_trains[st_code] = []
-            self.station_trains[st_code].append((t_no, seq, arr, dep, day_no))
+            self.station_trains[st_code].append((t_no, seq, arr, dep, day_no, dist))
 
             if t_no not in self.train_stops:
                 self.train_stops[t_no] = []
@@ -328,7 +332,8 @@ class DataIndexService:
                 "stop_seq": seq,
                 "arrival_time": arr,
                 "departure_time": dep,
-                "day_no": day_no
+                "day_no": day_no,
+                "distance_km": dist
             }
             self.train_stops[t_no].append(stop_dict)
             self.train_stop_map[t_no][st_code] = stop_dict
@@ -393,7 +398,7 @@ class DataIndexService:
         logging.info(f"Snapshot reloaded from disk in {elapsed_ms:.2f} ms (< 50ms verified).")
         return elapsed_ms
 
-    # ================= Read-Only Data-Access Interface =================
+    # Read-Only Data-Access Interface
 
     def stationExists(self, code: str) -> bool:
         if not code:

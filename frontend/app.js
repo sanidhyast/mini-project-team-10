@@ -342,9 +342,16 @@ function renderJourneyResults(response, src, dst) {
             <span class="train-no-badge">${train.train_no}</span>
             <span class="train-name">${train.train_name}</span>
           </div>
-          <div class="duration-badge">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            ${train.duration_formatted}
+          <div style="display: flex; gap: 8px; align-items: center;">
+            ${train.distance_formatted ? `
+            <div class="distance-badge" title="Track Distance">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+              ${train.distance_formatted}
+            </div>` : ''}
+            <div class="duration-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              ${train.duration_formatted}
+            </div>
           </div>
         </div>
 
@@ -373,7 +380,7 @@ function renderJourneyResults(response, src, dst) {
   } else if (mode === 'CONNECTING') {
     modeBadge.className = 'mode-badge connecting';
     modeBadge.textContent = 'CONNECTING (DEPTH 2)';
-    bannerText.textContent = `No direct trains. Automatically routed via connecting hub (Transfer Buffer ≥ 30m enforced). Found ${results.length} journey(s).`;
+    bannerText.textContent = `No direct trains. Automatically routed via connecting hub ranked by MINIMUM DISTANCE (Transfer Buffer ≥ 30m enforced). Found ${results.length} journey(s).`;
 
     if (results.length === 0) {
       renderEmptyState('NO_ROUTE', `No feasible 2-leg connecting journey found between ${src} and ${dst} with ≥ 30 min buffer.`);
@@ -387,9 +394,15 @@ function renderJourneyResults(response, src, dst) {
             <span class="badge team-badge">Rank #${j.rank}</span>
             <span class="train-name">Via ${j.transfer_station_name} (${j.transfer_station})</span>
           </div>
-          <div class="duration-badge">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            Total: ${j.total_duration_formatted}
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="distance-badge" title="Total Journey Distance">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+              ${j.total_distance_formatted || ''}
+            </div>
+            <div class="duration-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Total: ${j.total_duration_formatted}
+            </div>
           </div>
         </div>
 
@@ -397,7 +410,7 @@ function renderJourneyResults(response, src, dst) {
           <!-- Leg 1 -->
           <div class="leg-card">
             <div class="leg-header">
-              <span>LEG 1 · Train ${j.leg1.train_no} (${j.leg1.train_name})</span>
+              <span>LEG 1 · Train ${j.leg1.train_no} (${j.leg1.train_name}) · ${j.leg1.distance_formatted || ''}</span>
               <span>Duration: ${j.leg1.duration_formatted}</span>
             </div>
             <div class="leg-body">
@@ -423,7 +436,7 @@ function renderJourneyResults(response, src, dst) {
           <!-- Leg 2 -->
           <div class="leg-card">
             <div class="leg-header">
-              <span>LEG 2 · Train ${j.leg2.train_no} (${j.leg2.train_name})</span>
+              <span>LEG 2 · Train ${j.leg2.train_no} (${j.leg2.train_name}) · ${j.leg2.distance_formatted || ''}</span>
               <span>Duration: ${j.leg2.duration_formatted}</span>
             </div>
             <div class="leg-body">
