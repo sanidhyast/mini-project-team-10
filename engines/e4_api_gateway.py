@@ -1,12 +1,26 @@
 """
-Engine E4 — Query & Result Interface Gateway (Process P1 · Web & Networks)
-FastAPI REST server providing:
-- GET /api/v1/search/journey
-- POST /api/v1/search/travel-together
-- GET /api/v1/stations
-- GET /api/v1/health
-- Static frontend server for index.html, styles.css, app.js
-- Telemetry & SEARCH_LOG persistence
+Engine E4 — Query & Result Interface Gateway (Process P1 · Web, Security & Networks)
+
+FastAPI REST API server providing:
+1. Journey Search REST API:
+   - GET /api/v1/search/journey
+   - TRACEABILITY: [FR-01], [FR-02], [FR-03], [FR-04], [NFR-01] (<= 3.0s latency), [NFR-04] (HTTP 400 validation).
+2. Travel Together Coordinated Search REST API:
+   - POST /api/v1/search/travel-together
+   - TRACEABILITY: [FR-10], [FR-11], [FR-12], [NFR-01], [NFR-04].
+3. User Authentication & Verification REST APIs:
+   - POST /api/v1/auth/register-init (Generate OTP & dispatch email)
+   - POST /api/v1/auth/verify-otp (Verify 6-digit OTP token)
+   - POST /api/v1/auth/complete-registration (Salted hash password creation)
+   - POST /api/v1/auth/login (Credential authentication)
+4. Admin Timetable CRUD & Hot Snapshot Rebuild:
+   - GET/POST /api/v1/admin/trains
+   - GET/PUT/DELETE /api/v1/admin/trains/{train_no}
+   - POST /api/v1/admin/rebuild-index [NFR-04 Supplemental]
+5. Static SPA UI Server:
+   - Serves authentic Indian Railways responsive frontend with search gating.
+6. Telemetry & SEARCH_LOG persistence:
+   - Measures end-to-end response times and logs audit records to SQLite SEARCH_LOG table.
 """
 
 import os
@@ -101,6 +115,10 @@ def get_gateway_index_service():
 def get_gateway_orchestrator():
     return get_orchestrator()
 
+# ==============================================================================
+# REST API ENDPOINTS & SEARCH TELEMETRY [FR-01, FR-10, NFR-01, NFR-04]
+# ==============================================================================
+
 @app.get("/api/v1/search/journey")
 async def search_journey_api(
     source: Optional[str] = Query(None, description="Origin station code"),
@@ -108,6 +126,11 @@ async def search_journey_api(
     date: Optional[str] = Query(None, description="Journey date YYYY-MM-DD"),
     simulate_timeout: bool = Query(False, description="Simulate worker timeout for resilience test")
 ):
+    """
+    [FR-01, FR-02, FR-03, FR-04, NFR-01, NFR-04]
+    Direct & Connecting journey search. Dispatches to Engine E3 via Python interface.
+    Measures end-to-end latency and persists audit records to SQLite SEARCH_LOG table.
+    """
     t_start = time.perf_counter()
     params_str = json.dumps({"source": source, "destination": destination, "date": date})
 
@@ -119,7 +142,7 @@ async def search_journey_api(
     elapsed_ms = (time.perf_counter() - t_start) * 1000.0
     status_code = res.get("status_code", 200)
 
-    # Persist to SEARCH_LOG table
+    # Persist to SEARCH_LOG table [NFR-01, NFR-02 telemetry]
     get_gateway_index_service().log_search("JOURNEY", params_str, status_code, elapsed_ms)
 
     res["response_time_ms"] = round(elapsed_ms, 2)
@@ -127,6 +150,10 @@ async def search_journey_api(
 
 @app.post("/api/v1/search/travel-together")
 async def search_travel_together_api(payload: TravelTogetherRequest):
+    """
+    [FR-10, FR-11, FR-12, NFR-01, NFR-04]
+    Travel Together multi-origin coordinated search. Dispatches to Engine E3.
+    """
     t_start = time.perf_counter()
     params_str = json.dumps({
         "origins": payload.origins,
@@ -147,7 +174,7 @@ async def search_travel_together_api(payload: TravelTogetherRequest):
     elapsed_ms = (time.perf_counter() - t_start) * 1000.0
     status_code = res.get("status_code", 200)
 
-    # Persist to SEARCH_LOG table
+    # Persist to SEARCH_LOG table [NFR-01, NFR-02 telemetry]
     get_gateway_index_service().log_search("TRAVEL_TOGETHER", params_str, status_code, elapsed_ms)
 
     res["response_time_ms"] = round(elapsed_ms, 2)

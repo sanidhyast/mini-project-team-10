@@ -1,3 +1,23 @@
+"""
+Engine E3 — Coordinator & Supervisor Service (Process P2 · State Machine & Fault Tolerance)
+
+This module manages request lifecycles, IPC dispatch, and worker supervision:
+1. Deterministic Request State Machine:
+   - Tracks explicit state transitions:
+     RECEIVED -> VALIDATING -> [REJECTED | VALIDATED] ->
+     [SEARCHING_DIRECT -> (COMPLETED | SEARCHING_CONNECTING)] | [SEARCHING_TOGETHER] ->
+     [COMPLETED | NO_RESULT | FAILED] -> RESPONDED.
+2. Immediate Pre-Dispatch Request Validator:
+   - TRACEABILITY: [FR-01], [FR-10], [NFR-04] (Returns HTTP 400 without crashing or touching worker pool).
+   - Validates station codes against in-memory index (stationExists).
+   - Validates distinct source/destination and distinct origins (len(origins) >= 2).
+   - Validates ISO date formats (YYYY-MM-DD).
+3. Worker Watchdog Supervisor:
+   - TRACEABILITY: [NFR-01] Enforces 3.0-second performance ceiling over IPC queues.
+   - Detects hung or crashed worker processes, terminates rogue PIDs, and respawns a healthy pool.
+   - Returns controlled HTTP 503 without degrading overall system stability.
+"""
+
 import os
 import sys
 import time
@@ -10,6 +30,7 @@ from typing import Dict, List, Any, Optional, Tuple
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [E3-ORCHESTRATOR] %(message)s")
 
 class RequestStateMachine:
+    """Explicit deterministic state machine tracking search request transitions."""
     def __init__(self, request_id: str, request_type: str):
         self.request_id = request_id
         self.request_type = request_type
@@ -30,6 +51,10 @@ class RequestStateMachine:
         }
 
 class SearchOrchestrator:
+    """
+    Supervisor orchestrator managing IPC task dispatch, pre-validation,
+    and watchdog timeout enforcement [NFR-01, NFR-04].
+    """
     def __init__(self, num_workers: int = 2, timeout_sec: float = 3.0):
         self.num_workers = num_workers
         self.timeout_sec = timeout_sec
@@ -77,8 +102,21 @@ class SearchOrchestrator:
         self._start_worker_pool()
         logging.info("Supervisor successfully respawned clean worker pool with fresh IPC queues.")
 
+    # ==========================================================================
+    # PRE-DISPATCH VALIDATION [FR-01, FR-10, NFR-04]
+    # ==========================================================================
+    # Fast-fail validation: Invalid inputs return HTTP 400 immediately,
+    # preventing malformed queries from entering the IPC queues or worker pool.
+    # ==========================================================================
+
     def validate_journey_request(self, source: Optional[str], destination: Optional[str], date_str: Optional[str]) -> Tuple[bool, Optional[str]]:
-        """Strict validation of journey search parameters."""
+        """
+        [FR-01, NFR-04] Strict validation of journey search parameters:
+        - Presence of source, destination, date
+        - Source != Destination
+        - Valid ISO YYYY-MM-DD date format
+        - Valid station existence in index
+        """
         if not source or not str(source).strip():
             return False, "Source station code is required."
         if not destination or not str(destination).strip():
@@ -105,7 +143,13 @@ class SearchOrchestrator:
         return True, None
 
     def validate_travel_together_request(self, origins: Any, destination: Optional[str], date_str: Optional[str]) -> Tuple[bool, Optional[str]]:
-        """Strict validation of travel together parameters."""
+        """
+        [FR-10, NFR-04] Strict validation of travel together parameters:
+        - len(origins) >= 2
+        - All origin station codes unique
+        - Destination not among origins
+        - Valid ISO date format & stations exist in index
+        """
         if not origins or not isinstance(origins, list):
             return False, "Origins must be a list containing at least 2 distinct station codes."
         if len(origins) < 2:
@@ -137,9 +181,16 @@ class SearchOrchestrator:
 
         return True, None
 
+    # ==========================================================================
+    # WORKER DISPATCH & SUPERVISOR WATCHDOG [NFR-01, FR-04]
+    # ==========================================================================
+
     def execute_journey_search(self, source: str, destination: str, date_str: str, simulate_timeout: bool = False) -> Dict[str, Any]:
         """
         Coordinates journey search with state machine tracking and watchdog timeout supervisor.
+        - [FR-01] Accepts source, destination, date.
+        - [FR-04] Automatic connecting journey search if direct yields 0 results.
+        - [NFR-01] Enforces 3.0-second timeout ceiling; auto-respawns workers on hang.
         """
         req_id = str(uuid.uuid4())
         sm = RequestStateMachine(req_id, "JOURNEY")
