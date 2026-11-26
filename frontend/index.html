@@ -99,68 +99,17 @@
                     <div class="suggestions-list" id="dst-suggestions"></div>
                   </div>
 
-                  <!-- Row 2: Date & Class -->
-                  <div class="irctc-field-group">
-                    <label for="date-input">DD/MM/YYYY *</label>
+                  <!-- Row 2: Journey Date -->
+                  <div class="irctc-field-group full">
+                    <label for="date-input">Journey Date (DD/MM/YYYY) *</label>
                     <div class="irctc-input-wrapper">
                       <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                       <input type="date" id="date-input" required>
                     </div>
                   </div>
-
-                  <div class="irctc-field-group span-2">
-                    <label for="class-select">Class</label>
-                    <div class="irctc-input-wrapper">
-                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                      <select id="class-select">
-                        <option value="ALL">All Classes</option>
-                        <option value="1A">AC First Class (1A)</option>
-                        <option value="2A">AC 2 Tier (2A)</option>
-                        <option value="3A">AC 3 Tier (3A)</option>
-                        <option value="CC">AC Chair Car (CC)</option>
-                        <option value="SL">Sleeper (SL)</option>
-                        <option value="2S">Second Sitting (2S)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <!-- Row 3: Quota & Concession -->
-                  <div class="irctc-field-group">
-                    <label for="quota-select">Quota</label>
-                    <div class="irctc-input-wrapper">
-                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                      <select id="quota-select">
-                        <option value="GENERAL">GENERAL</option>
-                        <option value="TATKAL">TATKAL</option>
-                        <option value="PREMIUM_TATKAL">PREMIUM TATKAL</option>
-                        <option value="LADIES">LADIES</option>
-                        <option value="LOWER_BERTH">LOWER BERTH / SR.CITIZEN</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div class="irctc-field-group span-2">
-                    <label for="concession-select">Concession Type</label>
-                    <div class="irctc-input-wrapper">
-                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                      <select id="concession-select">
-                        <option value="NONE">None</option>
-                        <option value="DIVYANG">Person with Disability</option>
-                        <option value="STUDENT">Student</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <!-- Row 4: Checkbox -->
-                  <div class="irctc-check-row">
-                    <label class="irctc-check-label">
-                      <input type="checkbox" id="chk-flexible" checked>
-                      <span>Flexible With Date</span>
-                    </label>
-                  </div>
                 </div>
 
-                <!-- Row 5: Action Button -->
+                <!-- Row 3: Action Button -->
                 <button type="submit" class="irctc-orange-cta" id="journey-submit-btn">
                   Search Trains
                 </button>
