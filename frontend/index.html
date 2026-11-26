@@ -60,8 +60,67 @@
 
   <!-- Main App View -->
   <main class="app-main">
-    <!-- Hero Unified Search Card -->
-    <div class="search-card">
+    <!-- Guest Hero / Sign In Prompt (Visible only when NOT logged in) -->
+    <div class="guest-hero-card" id="guest-hero-card">
+      <div class="guest-hero-badge">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+        </svg>
+        <span>Authentication Required to Search</span>
+      </div>
+      <h2 class="guest-hero-title">Experience Smart Rail Routing with RailSearch</h2>
+      <p class="guest-hero-subtitle">
+        Sign in or create an account to search direct trains, discover intelligent layovers with guaranteed transfer buffers, and coordinate trips with friends.
+      </p>
+
+      <div class="guest-hero-actions">
+        <button type="button" class="primary-btn guest-cta-btn" onclick="openLoginModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          <span>Sign In to Search Trains</span>
+        </button>
+        <button type="button" class="secondary-btn guest-cta-btn" onclick="openRegisterModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="8.5" cy="7" r="4"/>
+            <line x1="20" y1="8" x2="20" y2="14"/>
+            <line x1="23" y1="11" x2="17" y2="11"/>
+          </svg>
+          <span>Create Free Account</span>
+        </button>
+      </div>
+
+      <div class="guest-features-grid">
+        <div class="guest-feature-item">
+          <div class="feature-icon">⚡</div>
+          <div class="feature-text">
+            <strong>Direct Express Search</strong>
+            <p>Fast set-intersection lookup with running-day compliance.</p>
+          </div>
+        </div>
+        <div class="guest-feature-item">
+          <div class="feature-icon">🔄</div>
+          <div class="feature-text">
+            <strong>Smart Layover Connections</strong>
+            <p>Depth-2 BFS with strict &ge;30 min buffer and min-distance min-heap.</p>
+          </div>
+        </div>
+        <div class="guest-feature-item">
+          <div class="feature-icon">🤝</div>
+          <div class="feature-text">
+            <strong>Travel Together Multi-Origin</strong>
+            <p>Coordinate travel from different stations on a shared train.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hero Unified Search Card (Visible ONLY when logged in) -->
+    <div class="search-card" id="search-card" style="display: none;">
       <div class="search-card-header">
         <h2>Book & Search Train Routes</h2>
         <p>Find direct expresses, smart layover connections, or coordinate trips with friends</p>
@@ -190,7 +249,7 @@
     </div>
 
     <!-- Results Container -->
-    <section class="results-container" id="results-container">
+    <section class="results-container" id="results-container" style="display: none;">
       <div class="empty-state" id="initial-empty-state">
         <div class="empty-icon-box">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8">

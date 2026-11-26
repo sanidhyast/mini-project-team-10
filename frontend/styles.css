@@ -212,6 +212,138 @@ body {
   flex: 1;
 }
 
+/* Guest Hero Card (Auth Requirement Gate) */
+.guest-hero-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 3.5rem 2.5rem;
+  margin-bottom: 2rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.guest-hero-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #3b82f6, #60a5fa);
+}
+
+.guest-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.85rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  margin-bottom: 1.25rem;
+  letter-spacing: 0.5px;
+}
+
+.guest-hero-title {
+  font-size: 2.125rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.75px;
+  margin-bottom: 0.875rem;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.25;
+}
+
+.guest-hero-subtitle {
+  font-size: 1.0625rem;
+  color: var(--text-muted);
+  max-width: 650px;
+  margin: 0 auto 2.25rem auto;
+  line-height: 1.6;
+}
+
+.guest-hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+  flex-wrap: wrap;
+}
+
+.guest-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.875rem 1.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.guest-features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  max-width: 900px;
+  margin: 0 auto;
+  padding-top: 2.25rem;
+  border-top: 1px solid var(--border-subtle);
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .guest-hero-card {
+    padding: 2.5rem 1.5rem;
+  }
+  .guest-hero-title {
+    font-size: 1.625rem;
+  }
+  .guest-features-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+.guest-feature-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  background: #f8fafc;
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid #f1f5f9;
+}
+
+.guest-feature-item .feature-icon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.guest-feature-item strong {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.guest-feature-item p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
 /* Unified Search Card */
 .search-card {
   background: var(--bg-card);

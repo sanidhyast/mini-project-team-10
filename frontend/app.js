@@ -35,12 +35,14 @@ function loadUserSession() {
   if (stored) {
     try {
       currentUser = JSON.parse(stored);
-      updateNavAuthUI();
     } catch (e) {
       localStorage.removeItem('railsearch_user');
       currentUser = null;
     }
+  } else {
+    currentUser = null;
   }
+  updateNavAuthUI();
 }
 
 function updateNavAuthUI() {
@@ -50,27 +52,48 @@ function updateNavAuthUI() {
   const roleEl = document.getElementById('nav-user-role');
   const avatarEl = document.getElementById('nav-user-avatar');
   const adminBtn = document.getElementById('admin-dashboard-btn');
+  const searchCard = document.getElementById('search-card');
+  const guestHeroCard = document.getElementById('guest-hero-card');
+  const resultsContainer = document.getElementById('results-container');
+  const statusBanner = document.getElementById('status-banner');
+  const togetherDrawer = document.getElementById('together-merge-card');
 
   if (currentUser) {
-    guestNav.style.display = 'none';
-    userNav.style.display = 'flex';
+    if (guestNav) guestNav.style.display = 'none';
+    if (userNav) userNav.style.display = 'flex';
 
-    nameEl.textContent = currentUser.full_name || 'User';
-    avatarEl.textContent = (currentUser.full_name || 'U').charAt(0).toUpperCase();
+    if (nameEl) nameEl.textContent = currentUser.full_name || 'User';
+    if (avatarEl) avatarEl.textContent = (currentUser.full_name || 'U').charAt(0).toUpperCase();
 
     if (currentUser.role === 'ADMIN') {
-      roleEl.textContent = 'Administrator';
-      roleEl.style.color = '#b45309';
-      adminBtn.style.display = 'inline-flex';
+      if (roleEl) {
+        roleEl.textContent = 'Administrator';
+        roleEl.style.color = '#b45309';
+      }
+      if (adminBtn) adminBtn.style.display = 'inline-flex';
     } else {
-      roleEl.textContent = 'Passenger';
-      roleEl.style.color = '#2563eb';
-      adminBtn.style.display = 'none';
+      if (roleEl) {
+        roleEl.textContent = 'Passenger';
+        roleEl.style.color = '#2563eb';
+      }
+      if (adminBtn) adminBtn.style.display = 'none';
     }
+
+    // Authenticated: reveal search option & results
+    if (guestHeroCard) guestHeroCard.style.display = 'none';
+    if (searchCard) searchCard.style.display = 'block';
+    if (resultsContainer) resultsContainer.style.display = 'block';
   } else {
-    guestNav.style.display = 'flex';
-    userNav.style.display = 'none';
-    adminBtn.style.display = 'none';
+    // Unauthenticated / Guest: HIDE search option and results, display login prompt
+    if (guestNav) guestNav.style.display = 'flex';
+    if (userNav) userNav.style.display = 'none';
+    if (adminBtn) adminBtn.style.display = 'none';
+
+    if (guestHeroCard) guestHeroCard.style.display = 'block';
+    if (searchCard) searchCard.style.display = 'none';
+    if (resultsContainer) resultsContainer.style.display = 'none';
+    if (statusBanner) statusBanner.style.display = 'none';
+    if (togetherDrawer) togetherDrawer.style.display = 'none';
   }
 }
 
@@ -79,7 +102,7 @@ function handleLogout() {
   localStorage.removeItem('railsearch_user');
   localStorage.removeItem('railsearch_token');
   updateNavAuthUI();
-  showToast('Logged out successfully.', 'info');
+  showToast('Logged out successfully. Please sign in to search trains.', 'info');
 }
 
 // Register Modal Flow
@@ -323,6 +346,11 @@ async function handleLogin(e) {
 
 async function handleJourneySearch(e) {
   e.preventDefault();
+  if (!currentUser) {
+    showToast('Please sign in or create an account to search trains.', 'warning');
+    openLoginModal();
+    return;
+  }
   const src = document.getElementById('src-input').value.trim().toUpperCase();
   const dst = document.getElementById('dst-input').value.trim().toUpperCase();
   const date = document.getElementById('date-input').value;
@@ -604,6 +632,11 @@ function removeOriginInput(btn) {
 }
 
 async function executeTogetherSearch() {
+  if (!currentUser) {
+    showToast('Please sign in or create an account to use Travel Together.', 'warning');
+    openLoginModal();
+    return;
+  }
   const originInputs = document.querySelectorAll('.together-origin-input');
   const origins = Array.from(originInputs).map(i => i.value.trim().toUpperCase()).filter(Boolean);
   const dst = document.getElementById('together-locked-dst').textContent.trim();
@@ -791,6 +824,11 @@ function swapStations() {
 }
 
 function applyPreset(src, dst) {
+  if (!currentUser) {
+    showToast('Please sign in or create an account to search trains.', 'warning');
+    openLoginModal();
+    return;
+  }
   document.getElementById('src-input').value = src;
   document.getElementById('dst-input').value = dst;
   document.getElementById('journey-submit-btn').click();
