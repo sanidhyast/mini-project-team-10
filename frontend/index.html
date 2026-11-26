@@ -60,131 +60,178 @@
 
   <!-- Main App View -->
   <main class="app-main">
-    <!-- Guest Hero / Sign In Prompt (Visible only when NOT logged in) -->
-    <div class="guest-hero-card" id="guest-hero-card">
-      <div class="guest-hero-badge">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-        </svg>
-        <span>Authentication Required to Search</span>
+    <!-- Top Announcement Ribbon (IRCTC Beta Bar) -->
+    <div class="irctc-top-bar">
+      <div class="irctc-alert-wrap">
+        <span class="irctc-new-pill">NEW</span>
+        <span class="irctc-alert-msg">Explore the beta version of our new website and give your valuable suggestions</span>
+        <a href="javascript:void(0)" class="irctc-beta-btn">
+          <span>Explore beta now</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+        </a>
       </div>
-      <h2 class="guest-hero-title">Experience Smart Rail Routing with RailSearch</h2>
-      <p class="guest-hero-subtitle">
-        Sign in or create an account to search direct trains, discover intelligent layovers with guaranteed transfer buffers, and coordinate trips with friends.
-      </p>
-
-      <div class="guest-hero-actions">
-        <button type="button" class="primary-btn guest-cta-btn" onclick="openLoginModal()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
-            <polyline points="10 17 15 12 10 7"/>
-            <line x1="15" y1="12" x2="3" y2="12"/>
-          </svg>
-          <span>Sign In to Search Trains</span>
-        </button>
-        <button type="button" class="secondary-btn guest-cta-btn" onclick="openRegisterModal()">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="8.5" cy="7" r="4"/>
-            <line x1="20" y1="8" x2="20" y2="14"/>
-            <line x1="23" y1="11" x2="17" y2="11"/>
-          </svg>
-          <span>Create Free Account</span>
-        </button>
-      </div>
-
-      <div class="guest-features-grid">
-        <div class="guest-feature-item">
-          <div class="feature-icon">⚡</div>
-          <div class="feature-text">
-            <strong>Direct Express Search</strong>
-            <p>Fast set-intersection lookup with running-day compliance.</p>
-          </div>
-        </div>
-        <div class="guest-feature-item">
-          <div class="feature-icon">🔄</div>
-          <div class="feature-text">
-            <strong>Smart Layover Connections</strong>
-            <p>Depth-2 BFS with strict &ge;30 min buffer and min-distance min-heap.</p>
-          </div>
-        </div>
-        <div class="guest-feature-item">
-          <div class="feature-icon">🤝</div>
-          <div class="feature-text">
-            <strong>Travel Together Multi-Origin</strong>
-            <p>Coordinate travel from different stations on a shared train.</p>
-          </div>
-        </div>
-      </div>
+      <button type="button" class="irctc-close-btn" onclick="this.closest('.irctc-top-bar').style.display='none'">×</button>
     </div>
 
-    <!-- Hero Unified Search Card (Visible ONLY when logged in) -->
-    <div class="search-card" id="search-card" style="display: none;">
-      <div class="search-card-header">
-        <h2>Book & Search Train Routes</h2>
-        <p>Find direct expresses, smart layover connections, or coordinate trips with friends</p>
-      </div>
-
-      <form id="journey-form" onsubmit="handleJourneySearch(event)">
-        <div class="search-grid">
-          <!-- Source -->
-          <div class="input-group">
-            <label for="src-input">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m12 8 4 4-4 4M8 12h8"/></svg>
-              From Station
-            </label>
-            <div class="autocomplete-wrapper">
-              <input type="text" id="src-input" placeholder="e.g. SBC or KSR Bengaluru" autocomplete="off" required>
-              <div class="suggestions-list" id="src-suggestions"></div>
+    <!-- Main IRCTC Hero Section with Booking Card & Vande Bharat Train -->
+    <div class="irctc-hero-banner">
+      <div class="irctc-hero-content">
+        <!-- Left Booking Box with Dark Blue Tabs -->
+        <div class="irctc-card-container">
+          <div class="irctc-card-nav-tabs">
+            <div class="irctc-tab-btn active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>PNR STATUS</span>
+            </div>
+            <div class="irctc-tab-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+              <span>CHARTS / VACANCY</span>
             </div>
           </div>
 
-          <!-- Swap Button -->
-          <div class="swap-wrapper">
-            <button type="button" class="swap-btn" title="Swap stations" onclick="swapStations()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>
-              </svg>
-            </button>
-          </div>
+          <div class="irctc-white-box">
+            <!-- When Logged In: BOOK TICKET SEARCH FORM -->
+            <div id="irctc-auth-search" style="display: none;">
+              <h2 class="irctc-box-title">BOOK TICKET</h2>
+              <form id="journey-form" onsubmit="handleJourneySearch(event)">
+                <div class="irctc-grid">
+                  <!-- Row 1: From & To -->
+                  <div class="irctc-field-group">
+                    <label for="src-input">From</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="m3 3 7 18 3-7 7-3L3 3z"/></svg>
+                      <input type="text" id="src-input" placeholder="From Station" autocomplete="off" required>
+                    </div>
+                    <div class="suggestions-list" id="src-suggestions"></div>
+                  </div>
 
-          <!-- Destination -->
-          <div class="input-group">
-            <label for="dst-input">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
-              To Destination
-            </label>
-            <div class="autocomplete-wrapper">
-              <input type="text" id="dst-input" placeholder="e.g. CSMT or SMET" autocomplete="off" required>
-              <div class="suggestions-list" id="dst-suggestions"></div>
+                  <div class="irctc-swap-wrap">
+                    <button type="button" class="irctc-swap-icon-btn" title="Swap stations" onclick="swapStations()">⇄</button>
+                  </div>
+
+                  <div class="irctc-field-group">
+                    <label for="dst-input">To</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                      <input type="text" id="dst-input" placeholder="To Destination" autocomplete="off" required>
+                    </div>
+                    <div class="suggestions-list" id="dst-suggestions"></div>
+                  </div>
+
+                  <!-- Row 2: Date & Class -->
+                  <div class="irctc-field-group">
+                    <label for="date-input">DD/MM/YYYY *</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                      <input type="date" id="date-input" required>
+                    </div>
+                  </div>
+
+                  <div class="irctc-field-group span-2">
+                    <label for="class-select">Class</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                      <select id="class-select">
+                        <option value="ALL">All Classes</option>
+                        <option value="1A">AC First Class (1A)</option>
+                        <option value="2A">AC 2 Tier (2A)</option>
+                        <option value="3A">AC 3 Tier (3A)</option>
+                        <option value="CC">AC Chair Car (CC)</option>
+                        <option value="SL">Sleeper (SL)</option>
+                        <option value="2S">Second Sitting (2S)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Row 3: Quota & Concession -->
+                  <div class="irctc-field-group">
+                    <label for="quota-select">Quota</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                      <select id="quota-select">
+                        <option value="GENERAL">GENERAL</option>
+                        <option value="TATKAL">TATKAL</option>
+                        <option value="PREMIUM_TATKAL">PREMIUM TATKAL</option>
+                        <option value="LADIES">LADIES</option>
+                        <option value="LOWER_BERTH">LOWER BERTH / SR.CITIZEN</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="irctc-field-group span-2">
+                    <label for="concession-select">Concession Type</label>
+                    <div class="irctc-input-wrapper">
+                      <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      <select id="concession-select">
+                        <option value="NONE">None</option>
+                        <option value="DIVYANG">Person with Disability</option>
+                        <option value="STUDENT">Student</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Row 4: Checkbox -->
+                  <div class="irctc-check-row">
+                    <label class="irctc-check-label">
+                      <input type="checkbox" id="chk-flexible" checked>
+                      <span>Flexible With Date</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Row 5: Action Button -->
+                <button type="submit" class="irctc-orange-cta" id="journey-submit-btn">
+                  Search Trains
+                </button>
+              </form>
             </div>
-          </div>
 
-          <!-- Date -->
-          <div class="input-group date-group">
-            <label for="date-input">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Departure Date
-            </label>
-            <input type="date" id="date-input" required>
-          </div>
+            <!-- When Logged Out: IRCTC Styled Inline Sign In -->
+            <div id="irctc-guest-login">
+              <h2 class="irctc-box-title">BOOK TICKET</h2>
+              <div class="irctc-gate-notice">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Please sign in to search and book train tickets</span>
+              </div>
 
-          <!-- CTA -->
-          <div class="action-group">
-            <button type="submit" class="primary-btn search-submit-btn" id="journey-submit-btn">
-              <span>Search Trains</span>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
-            </button>
+              <form onsubmit="handleInlineLogin(event)" class="irctc-inline-login-form">
+                <div class="irctc-field-group full">
+                  <label for="inline-login-id">Email or Mobile Number</label>
+                  <div class="irctc-input-wrapper">
+                    <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    <input type="text" id="inline-login-id" placeholder="Enter Email or 10-digit Mobile" required>
+                  </div>
+                </div>
+
+                <div class="irctc-field-group full">
+                  <label for="inline-login-pass">Password</label>
+                  <div class="irctc-input-wrapper">
+                    <svg class="irctc-field-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <input type="password" id="inline-login-pass" placeholder="Enter Password" required>
+                  </div>
+                </div>
+
+                <button type="submit" class="irctc-orange-cta" id="inline-login-btn">
+                  Sign In to Search Trains
+                </button>
+
+                <div class="irctc-guest-extras">
+                  <button type="button" class="irctc-quick-fill-btn" onclick="quickFillAndLoginAdmin()">
+                    ⚡ Quick Fill Admin (admin / admin123)
+                  </button>
+                  <a href="javascript:void(0)" class="irctc-reg-link" onclick="openRegisterModal()">
+                    Don't have an account? <strong>Register with OTP</strong>
+                  </a>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </form>
-      
-      <!-- Quick Test Corridor Chips -->
-      <div class="presets-row">
-        <span class="preset-label">Popular Corridors:</span>
-        <button type="button" class="preset-chip" onclick="applyPreset('SBC', 'CSMT')">Direct: SBC → CSMT (Udyan Express)</button>
-        <button type="button" class="preset-chip" onclick="applyPreset('UBL', 'SMET')">Connecting: UBL → SMET (via Birur RRB)</button>
+
+        <!-- Right Vande Bharat Train Hero -->
+        <div class="irctc-train-display">
+          <img src="/static/vande_bharat_hero.jpg" alt="Indian Railways Vande Bharat Express" class="irctc-train-photo">
+        </div>
       </div>
     </div>
 
@@ -248,18 +295,8 @@
       <p id="loading-text">Computing Routes across Worker Pool...</p>
     </div>
 
-    <!-- Results Container -->
-    <section class="results-container" id="results-container" style="display: none;">
-      <div class="empty-state" id="initial-empty-state">
-        <div class="empty-icon-box">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8">
-            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-          </svg>
-        </div>
-        <h3>Plan Your Rail Journey</h3>
-        <p>Select your origin, destination, and date above to find real-time train connections.</p>
-      </div>
-    </section>
+    <!-- Results Container (Populated when user searches) -->
+    <section class="results-container" id="results-container" style="display: none;"></section>
   </main>
 
   <!-- Clean Minimal Footer -->

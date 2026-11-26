@@ -52,8 +52,8 @@ function updateNavAuthUI() {
   const roleEl = document.getElementById('nav-user-role');
   const avatarEl = document.getElementById('nav-user-avatar');
   const adminBtn = document.getElementById('admin-dashboard-btn');
-  const searchCard = document.getElementById('search-card');
-  const guestHeroCard = document.getElementById('guest-hero-card');
+  const authSearch = document.getElementById('irctc-auth-search');
+  const guestLogin = document.getElementById('irctc-guest-login');
   const resultsContainer = document.getElementById('results-container');
   const statusBanner = document.getElementById('status-banner');
   const togetherDrawer = document.getElementById('together-merge-card');
@@ -79,22 +79,75 @@ function updateNavAuthUI() {
       if (adminBtn) adminBtn.style.display = 'none';
     }
 
-    // Authenticated: reveal search option & results
-    if (guestHeroCard) guestHeroCard.style.display = 'none';
-    if (searchCard) searchCard.style.display = 'block';
-    if (resultsContainer) resultsContainer.style.display = 'block';
+    // Authenticated: reveal BOOK TICKET search form, hide inline guest login
+    if (authSearch) authSearch.style.display = 'block';
+    if (guestLogin) guestLogin.style.display = 'none';
   } else {
-    // Unauthenticated / Guest: HIDE search option and results, display login prompt
+    // Unauthenticated: hide search option and results, display inline guest login
     if (guestNav) guestNav.style.display = 'flex';
     if (userNav) userNav.style.display = 'none';
     if (adminBtn) adminBtn.style.display = 'none';
 
-    if (guestHeroCard) guestHeroCard.style.display = 'block';
-    if (searchCard) searchCard.style.display = 'none';
+    if (authSearch) authSearch.style.display = 'none';
+    if (guestLogin) guestLogin.style.display = 'block';
     if (resultsContainer) resultsContainer.style.display = 'none';
     if (statusBanner) statusBanner.style.display = 'none';
     if (togetherDrawer) togetherDrawer.style.display = 'none';
   }
+}
+
+async function handleInlineLogin(e) {
+  e.preventDefault();
+  const idEl = document.getElementById('inline-login-id');
+  const passEl = document.getElementById('inline-login-pass');
+  const btn = document.getElementById('inline-login-btn');
+  if (!idEl || !passEl) return;
+
+  const identifier = idEl.value.trim();
+  const password = passEl.value;
+
+  btn.disabled = true;
+  btn.textContent = 'Signing In...';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier, password })
+    });
+    const data = await res.json();
+    btn.disabled = false;
+    btn.textContent = 'Sign In to Search Trains';
+
+    if (!res.ok) {
+      showToast(data.message || 'Invalid credentials', 'error');
+      return;
+    }
+
+    currentUser = data.user;
+    localStorage.setItem('railsearch_user', JSON.stringify(data.user));
+    if (data.token) localStorage.setItem('railsearch_token', data.token);
+
+    updateNavAuthUI();
+    showToast(`Welcome back, ${currentUser.full_name}! You can now search trains.`, 'success');
+
+    if (currentUser.role === 'ADMIN') {
+      showToast('Admin Mode: Click "Timetable Manager" in navbar to manage train schedules.', 'info', 5000);
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Sign In to Search Trains';
+    showToast(`Error: ${err.message}`, 'error');
+  }
+}
+
+function quickFillAndLoginAdmin() {
+  const idEl = document.getElementById('inline-login-id');
+  const passEl = document.getElementById('inline-login-pass');
+  if (idEl) idEl.value = 'admin';
+  if (passEl) passEl.value = 'admin123';
+  const btn = document.getElementById('inline-login-btn');
+  if (btn) btn.click();
 }
 
 function handleLogout() {
@@ -396,6 +449,7 @@ function renderJourneyResults(response, src, dst) {
   const bannerText = document.getElementById('banner-text');
   const bannerLatency = document.getElementById('banner-latency');
 
+  container.style.display = 'block';
   banner.style.display = 'flex';
   bannerLatency.textContent = `${response.response_time_ms || 0} ms`;
 
@@ -681,6 +735,7 @@ function renderTravelTogetherResults(response, origins, dst) {
   const bannerText = document.getElementById('banner-text');
   const bannerLatency = document.getElementById('banner-latency');
 
+  container.style.display = 'block';
   banner.style.display = 'flex';
   modeBadge.className = 'mode-badge together';
   modeBadge.textContent = 'TRAVEL TOGETHER (ALGORITHM B)';
@@ -835,6 +890,15 @@ function applyPreset(src, dst) {
 }
 
 function resetToHome() {
+  const banner = document.getElementById('status-banner');
+  if (banner) banner.style.display = 'none';
+  const together = document.getElementById('together-merge-card');
+  if (together) together.style.display = 'none';
+  const container = document.getElementById('results-container');
+  if (container) {
+    container.innerHTML = '';
+    container.style.display = 'none';
+  }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -1147,6 +1211,7 @@ function hideLoading() {
 
 function renderValidationError(msg) {
   const container = document.getElementById('results-container');
+  container.style.display = 'block';
   const banner = document.getElementById('status-banner');
   banner.style.display = 'flex';
   document.getElementById('banner-mode-badge').className = 'mode-badge error';
@@ -1166,6 +1231,7 @@ function renderValidationError(msg) {
 
 function renderServerError(msg) {
   const container = document.getElementById('results-container');
+  container.style.display = 'block';
   container.innerHTML = `
     <div class="empty-state">
       <div class="empty-icon-box" style="background: #fef2f2;">
@@ -1179,6 +1245,7 @@ function renderServerError(msg) {
 
 function renderEmptyState(code, msg) {
   const container = document.getElementById('results-container');
+  container.style.display = 'block';
   container.innerHTML = `
     <div class="empty-state">
       <div class="empty-icon-box">
