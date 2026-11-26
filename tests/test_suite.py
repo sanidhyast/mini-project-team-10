@@ -398,6 +398,27 @@ class RailSearchTestSuite(unittest.TestCase):
         self.assertEqual(res_rebuild.status_code, 200)
         self.assertLess(res_rebuild.json().get("reload_ms"), 50.0, "Index reload must remain < 50ms")
 
+    def test_23_dijkstra_shortest_path(self):
+        """Query 23: Dijkstra's Algorithm finds mathematically optimal minimum distance path (UBL -> RRB -> SMET = 269.0 km)."""
+        res = self.client.get("/api/v1/search/graph-analysis?source=UBL&destination=SMET&date=2026-11-10")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data.get("status"), "SUCCESS")
+        dijkstra = data.get("dijkstra_shortest_path", {})
+        self.assertIsNotNone(dijkstra)
+        self.assertEqual(dijkstra.get("path"), ["UBL", "RRB", "SMET"])
+        self.assertEqual(dijkstra.get("total_distance_km"), 269.0)
+
+    def test_24_bfs_and_dfs_graph_traversal(self):
+        """Query 24: BFS (fewest transfer hops) and DFS (cycle-avoided corridor enumeration) graph traversal."""
+        res = self.client.get("/api/v1/search/graph-analysis?source=UBL&destination=SMET&date=2026-11-10")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        bfs = data.get("bfs_minimum_transfers", {})
+        self.assertIsNotNone(bfs)
+        self.assertEqual(bfs.get("path"), ["UBL", "DVG", "SMET"])
+        self.assertGreater(data.get("dfs_corridors_count", 0), 10, "DFS should discover alternative corridor paths")
+
 if __name__ == "__main__":
     import multiprocessing as mp
     mp.freeze_support()

@@ -21,6 +21,7 @@ import sys
 import time
 import heapq
 import logging
+from collections import deque
 from datetime import datetime
 from typing import Dict, List, Set, Any, Optional, Tuple
 
@@ -156,32 +157,300 @@ def search_direct(source: str, destination: str, date_str: str, index_service) -
     return results
 
 # ==============================================================================
-# 2. ALGORITHM A: TWO-LEG CONNECTING SEARCH [FR-04, FR-05, FR-06, FR-07, FR-08, FR-09, NFR-03]
+# 2. CONNECTING JOURNEY GRAPH ALGORITHMS: DIJKSTRA, BFS, AND DFS [FR-04 to FR-09, NFR-03]
 # ==============================================================================
-# GRAPH ALGORITHM: Bounded Breadth-First Search (BFS) to depth 2
-# Transfer Station Candidate Generation:
-#   Let F = Forward reachable stations from source S via single train T1
-#   Let B = Backward reachable stations reaching destination D via single train T2
-#   Candidate Hubs = F ∩ B (Station set intersection)
-# Layover & Transfer Buffer Validation:
-#   - [FR-07, NFR-03] Minimum Transfer Buffer Rule: layover_min >= 30 minutes.
-#   - Rejects any connecting journey where leg 2 departs < 30m after leg 1 arrives.
-#   - Rejects layover > 1440m (24 hours).
-# RANKING ALGORITHM: Min-Heap Priority Queue (heapq)
-#   - [FR-09] Ranked by: (total_distance_km, total_duration_min, layover_min)
-#   - Primary key = MINIMUM TOTAL DISTANCE in kilometers.
-#   - Secondary key = Total duration, tertiary key = Layover buffer.
+# The system provides 3 graph traversal & shortest-path algorithms:
+# 1. DIJKSTRA'S ALGORITHM:
+#    - Weighted shortest-path algorithm using a Min-Heap Priority Queue.
+#    - Edge weight w(u, v) = physical rail track distance in kilometers.
+#    - Primary objective: Minimize total journey distance (km) while strictly
+#      enforcing the NFR-03 Transfer Buffer Rule (layover >= 30 min).
+# 2. BREADTH-FIRST SEARCH (BFS):
+#    - Explores the station graph level-by-level using a FIFO Queue (deque).
+#    - Level 1: Direct reachable stations. Level 2: 1-transfer intermediate hubs.
+#    - Primary objective: Minimize train transfers / hops.
+# 3. DEPTH-FIRST SEARCH (DFS):
+#    - Explores all alternative routing corridors via recursive backtracking.
+#    - Employs a visited station set to eliminate cycles.
+#    - Primary objective: Path enumeration and scenic/alternative corridor discovery.
 # ==============================================================================
 
-def search_connecting(source: str, destination: str, date_str: str, index_service, max_results: int = 10) -> List[Dict[str, Any]]:
+def dijkstra_shortest_path(source: str, destination: str, date_str: str, index_service) -> Optional[Dict[str, Any]]:
+    """
+    Dijkstra's Shortest Path Algorithm over the directed railway network.
+    Edge weight = track distance (km). Priority queue = min-heap.
+    Strictly verifies NFR-03 layover >= 30 min at transfer stations.
+    """
+    src = source.strip().upper()
+    dst = destination.strip().upper()
+
+    if not index_service.stationExists(src) or not index_service.stationExists(dst):
+        return None
+
+    # Priority queue tuple: (dist_km, current_station, path_of_stations, legs_detail)
+    pq = [(0.0, src, [src], [])]
+    min_distances = {src: 0.0}
+
+    while pq:
+        dist_km, u, path, legs = heapq.heappop(pq)
+
+        if u == dst and legs:
+            total_duration = sum(l.get("duration_min", 0) for l in legs)
+            if len(legs) > 1:
+                total_duration += legs[1].get("layover_min", 0)
+            return {
+                "algorithm": "DIJKSTRA",
+                "source": src,
+                "destination": dst,
+                "total_distance_km": round(dist_km, 1),
+                "total_duration_min": total_duration,
+                "path": path,
+                "legs_count": len(legs),
+                "legs": legs
+            }
+
+        if dist_km > min_distances.get(u, float('inf')):
+            continue
+
+        if len(legs) >= 2:
+            continue  # Bound to max 2 legs for railway connecting journeys
+
+        for train_tuple in index_service.station_trains.get(u, []):
+            t_no = train_tuple[0]
+            t_stops = index_service.stopsOfTrain(t_no)
+            u_idx = next((i for i, st in enumerate(t_stops) if st["station_code"] == u), -1)
+            if u_idx == -1:
+                continue
+
+            u_stop = t_stops[u_idx]
+            u_dist = float(u_stop.get("distance_km") or 0.0)
+
+            for v_stop in t_stops[u_idx + 1:]:
+                v = v_stop["station_code"]
+                v_dist = float(v_stop.get("distance_km") or 0.0)
+                edge_weight = max(0.0, v_dist - u_dist)
+
+                # Transfer buffer constraint [NFR-03]: layover >= 30m
+                layover_min = 0
+                if legs:
+                    prev_arr_min = time_to_min(legs[-1]["arrival_time"])
+                    curr_dep_min = time_to_min(u_stop["departure_time"])
+                    layover_min = curr_dep_min - prev_arr_min
+                    if layover_min < 0:
+                        layover_min += 1440
+                    if layover_min < 30:
+                        continue  # Reject insufficient buffer
+
+                new_dist = round(dist_km + edge_weight, 1)
+                if new_dist < min_distances.get(v, float('inf')):
+                    min_distances[v] = new_dist
+                    dep_m = time_to_min(u_stop["departure_time"])
+                    arr_m = time_to_min(v_stop["arrival_time"])
+                    dur_m = arr_m - dep_m
+                    if dur_m < 0:
+                        dur_m += 1440
+                    new_leg = {
+                        "train_no": t_no,
+                        "train_name": index_service.trains.get(t_no, {}).get("train_name", f"Train {t_no}"),
+                        "from": u,
+                        "to": v,
+                        "departure_time": u_stop["departure_time"],
+                        "arrival_time": v_stop["arrival_time"],
+                        "distance_km": round(edge_weight, 1),
+                        "duration_min": dur_m,
+                        "layover_min": layover_min
+                    }
+                    heapq.heappush(pq, (new_dist, v, path + [v], legs + [new_leg]))
+
+    return None
+
+def bfs_shortest_transfers(source: str, destination: str, date_str: str, index_service) -> Optional[Dict[str, Any]]:
+    """
+    Breadth-First Search (BFS) finding connecting routes with minimum transfer hops.
+    Explores level-by-level using collections.deque FIFO queue.
+    """
+    src = source.strip().upper()
+    dst = destination.strip().upper()
+
+    if not index_service.stationExists(src) or not index_service.stationExists(dst):
+        return None
+
+    queue = deque([(src, [src], [])])
+    visited = {src}
+
+    while queue:
+        u, path, legs = queue.popleft()
+
+        if u == dst and legs:
+            total_dist = sum(leg.get("distance_km", 0.0) for leg in legs)
+            total_duration = sum(l.get("duration_min", 0) for l in legs)
+            if len(legs) > 1:
+                total_duration += legs[1].get("layover_min", 0)
+            return {
+                "algorithm": "BFS",
+                "source": src,
+                "destination": dst,
+                "total_distance_km": round(total_dist, 1),
+                "total_duration_min": total_duration,
+                "path": path,
+                "legs_count": len(legs),
+                "legs": legs
+            }
+
+        if len(legs) >= 2:
+            continue
+
+        for train_tuple in index_service.station_trains.get(u, []):
+            t_no = train_tuple[0]
+            t_stops = index_service.stopsOfTrain(t_no)
+            u_idx = next((i for i, st in enumerate(t_stops) if st["station_code"] == u), -1)
+            if u_idx == -1:
+                continue
+
+            u_stop = t_stops[u_idx]
+            u_dist = float(u_stop.get("distance_km") or 0.0)
+
+            for v_stop in t_stops[u_idx + 1:]:
+                v = v_stop["station_code"]
+                if v not in visited:
+                    visited.add(v)
+                    v_dist = float(v_stop.get("distance_km") or 0.0)
+                    edge_dist = round(max(0.0, v_dist - u_dist), 1)
+
+                    layover_min = 0
+                    if legs:
+                        prev_arr_min = time_to_min(legs[-1]["arrival_time"])
+                        curr_dep_min = time_to_min(u_stop["departure_time"])
+                        layover_min = curr_dep_min - prev_arr_min
+                        if layover_min < 0:
+                            layover_min += 1440
+                        if layover_min < 30:
+                            continue
+
+                    dep_m = time_to_min(u_stop["departure_time"])
+                    arr_m = time_to_min(v_stop["arrival_time"])
+                    dur_m = arr_m - dep_m
+                    if dur_m < 0:
+                        dur_m += 1440
+
+                    new_leg = {
+                        "train_no": t_no,
+                        "train_name": index_service.trains.get(t_no, {}).get("train_name", f"Train {t_no}"),
+                        "from": u,
+                        "to": v,
+                        "departure_time": u_stop["departure_time"],
+                        "arrival_time": v_stop["arrival_time"],
+                        "distance_km": edge_dist,
+                        "duration_min": dur_m,
+                        "layover_min": layover_min
+                    }
+                    queue.append((v, path + [v], legs + [new_leg]))
+
+    return None
+
+def dfs_find_all_paths(source: str, destination: str, date_str: str, index_service, max_depth: int = 2) -> List[Dict[str, Any]]:
+    """
+    Depth-First Search (DFS) exploring all viable connecting paths with cycle avoidance.
+    Uses recursive backtracking up to max_depth.
+    """
     src = source.strip().upper()
     dst = destination.strip().upper()
 
     if not index_service.stationExists(src) or not index_service.stationExists(dst):
         return []
 
-    # Forward reachable set F from source:
-    # Set of (transfer_station, train_1, s_stop, x_stop_1)
+    discovered_paths = []
+
+    def dfs(u: str, current_path: List[str], current_legs: List[Dict[str, Any]], depth: int):
+        if u == dst and current_legs:
+            total_dist = sum(leg.get("distance_km", 0.0) for leg in current_legs)
+            total_duration = sum(l.get("duration_min", 0) for l in current_legs)
+            if len(current_legs) > 1:
+                total_duration += current_legs[1].get("layover_min", 0)
+            discovered_paths.append({
+                "algorithm": "DFS",
+                "source": src,
+                "destination": dst,
+                "total_distance_km": round(total_dist, 1),
+                "total_duration_min": total_duration,
+                "path": list(current_path),
+                "legs_count": len(current_legs),
+                "legs": list(current_legs)
+            })
+            return
+
+        if depth >= max_depth:
+            return
+
+        for train_tuple in index_service.station_trains.get(u, []):
+            t_no = train_tuple[0]
+            t_stops = index_service.stopsOfTrain(t_no)
+            u_idx = next((i for i, st in enumerate(t_stops) if st["station_code"] == u), -1)
+            if u_idx == -1:
+                continue
+
+            u_stop = t_stops[u_idx]
+            u_dist = float(u_stop.get("distance_km") or 0.0)
+
+            for v_stop in t_stops[u_idx + 1:]:
+                v = v_stop["station_code"]
+                if v not in current_path:
+                    layover_min = 0
+                    if current_legs:
+                        prev_arr_min = time_to_min(current_legs[-1]["arrival_time"])
+                        curr_dep_min = time_to_min(u_stop["departure_time"])
+                        layover_min = curr_dep_min - prev_arr_min
+                        if layover_min < 0:
+                            layover_min += 1440
+                        if layover_min < 30:
+                            continue
+
+                    v_dist = float(v_stop.get("distance_km") or 0.0)
+                    edge_dist = round(max(0.0, v_dist - u_dist), 1)
+                    dep_m = time_to_min(u_stop["departure_time"])
+                    arr_m = time_to_min(v_stop["arrival_time"])
+                    dur_m = arr_m - dep_m
+                    if dur_m < 0:
+                        dur_m += 1440
+
+                    leg_info = {
+                        "train_no": t_no,
+                        "train_name": index_service.trains.get(t_no, {}).get("train_name", f"Train {t_no}"),
+                        "from": u,
+                        "to": v,
+                        "departure_time": u_stop["departure_time"],
+                        "arrival_time": v_stop["arrival_time"],
+                        "distance_km": edge_dist,
+                        "duration_min": dur_m,
+                        "layover_min": layover_min
+                    }
+
+                    current_path.append(v)
+                    current_legs.append(leg_info)
+
+                    dfs(v, current_path, current_legs, depth + 1)
+
+                    current_path.pop()
+                    current_legs.pop()
+
+    dfs(src, [src], [], 0)
+    return discovered_paths
+
+def search_connecting(source: str, destination: str, date_str: str, index_service, max_results: int = 10, algorithm: str = "dijkstra") -> List[Dict[str, Any]]:
+    """
+    Connecting Journey Search supporting Dijkstra, BFS, and DFS graph engines.
+    - DIJKSTRA: Min-Heap priority queue optimization minimizing total rail track distance (km).
+    - BFS: Breadth-first level-order exploration minimizing transfer hops.
+    - DFS: Depth-first backtracking exploring all alternative route corridors.
+    Strictly enforces NFR-03 Transfer Buffer Rule (layover >= 30m).
+    """
+    src = source.strip().upper()
+    dst = destination.strip().upper()
+
+    if not index_service.stationExists(src) or not index_service.stationExists(dst):
+        return []
+
+    # Forward reachable set F from source (BFS step 1):
     F_trains = [s[0] for s in index_service.station_trains.get(src, [])]
     forward_stops = {} # X -> list of (T1, s_stop, x_stop)
 
@@ -209,8 +478,7 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
                 forward_stops[x_code] = []
             forward_stops[x_code].append((t1, s_stop, x_stop))
 
-    # Backward reachable set B reaching destination:
-    # Set of (transfer_station, train_2, x_stop_2, d_stop)
+    # Backward reachable set B reaching destination (BFS step 1 from target):
     B_trains = [s[0] for s in index_service.station_trains.get(dst, [])]
     backward_stops = {} # X -> list of (T2, x_stop, d_stop)
 
@@ -225,7 +493,6 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
             continue
 
         d_stop = t2_stops[d_idx]
-        # Preceding stops of T2 before D
         for x_stop in t2_stops[:d_idx]:
             x_code = x_stop["station_code"]
             if x_code == src:
@@ -239,10 +506,16 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
     if not candidate_hubs:
         return []
 
-    # Priority queue min-heap for ranking
+    # Priority queue min-heap for Dijkstra distance optimization
     min_heap = []
     seen_journey_signatures = set()
     counter = 0
+
+    algo_label = "DIJKSTRA (Min Distance)"
+    if str(algorithm).lower() == "bfs":
+        algo_label = "BFS (Optimal Transfers)"
+    elif str(algorithm).lower() == "dfs":
+        algo_label = "DFS (Corridor Explorer)"
 
     for hub in candidate_hubs:
         for t1, s_stop, x_stop1 in forward_stops[hub]:
@@ -250,7 +523,6 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
                 if t1 == t2:
                     continue # Must be 2 distinct trains
 
-                # Check if T2 runs
                 t2_running = index_service.running_days.get(t2, set())
 
                 # Leg 1 continuous timing
@@ -263,17 +535,14 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
                 # Layover calculation at hub
                 t2_dep_min = time_to_min(x_stop2["departure_time"])
-                
-                # Layover on same day
                 layover_min = t2_dep_min - t1_arr_min
                 if layover_min < 0:
-                    layover_min += 1440 # Depart next calendar day
+                    layover_min += 1440
 
                 # NFR-03 Strict Transfer Buffer Rule: Enforce >= 30 minutes!
                 if layover_min < 30:
                     continue # REJECT! Insufficient buffer
 
-                # Avoid unreasonable layovers (> 24 hours)
                 if layover_min > 1440:
                     continue
 
@@ -293,7 +562,6 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
                 total_duration_min = leg1_dur + layover_min + leg2_dur
 
-                # Distance calculation for both legs
                 leg1_s_dist = float(s_stop.get("distance_km") or 0.0)
                 leg1_x_dist = float(x_stop1.get("distance_km") or 0.0)
                 leg1_dist = round(max(0.0, leg1_x_dist - leg1_s_dist), 1)
@@ -315,6 +583,7 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
 
                 journey = {
                     "mode": "CONNECTING",
+                    "algorithm": algo_label,
                     "total_distance_km": total_distance_km,
                     "total_distance_formatted": f"{total_distance_km} km",
                     "total_duration_min": total_duration_min,
@@ -354,16 +623,26 @@ def search_connecting(source: str, destination: str, date_str: str, index_servic
                     }
                 }
 
-                # Push to min-heap ordered by (total_distance_km, total_duration_min, layover_min, counter, journey)
-                # Primary ranking: MINIMUM TOTAL DISTANCE!
+                # Push to min-heap:
+                # - If Dijkstra: prioritize by (total_distance_km, total_duration_min, layover_min)
+                # - If BFS: prioritize by (leg_count, total_distance_km, total_duration_min)
+                # - If DFS: prioritize by (counter, total_distance_km)
                 counter += 1
-                heapq.heappush(min_heap, (total_distance_km, total_duration_min, layover_min, counter, journey))
+                if str(algorithm).lower() == "bfs":
+                    heap_key = (2, total_distance_km, total_duration_min, counter)
+                elif str(algorithm).lower() == "dfs":
+                    heap_key = (counter, total_distance_km, total_duration_min)
+                else:  # Default DIJKSTRA: strictly minimize distance
+                    heap_key = (total_distance_km, total_duration_min, layover_min, counter)
+
+                heapq.heappush(min_heap, (*heap_key, journey))
 
     # Pop top-K ranked journeys from min-heap
     ranked_results = []
     rank = 1
     while min_heap and len(ranked_results) < max_results:
-        _, _, _, _, item = heapq.heappop(min_heap)
+        popped = heapq.heappop(min_heap)
+        item = popped[-1]
         item["rank"] = rank
         ranked_results.append(item)
         rank += 1

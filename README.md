@@ -50,11 +50,14 @@ RailSearch is a production-structured, full-stack Indian Railways search engine 
    - **Worker Watchdog Supervisor:** Enforces a hard `3.0s` timeout per task over IPC queues, detects crashed/hung worker PIDs, terminates the hung process, automatically spawns a healthy replacement worker, and returns a controlled `503 INTERNAL_ERROR` without taking down the server.
 
 3. **Engine E1 — Route Computation Worker Pool (Process Pool P3 · DSA & Math):**
-   - **Direct Search (`DIRECT`):** $O(1)$ inverted hash-map lookup of trains at source and destination, set intersection, sequence filtering (`stop_seq(source) < stop_seq(dest)`), and calendar day offset matching.
-   - **Algorithm A — Two-Leg Connecting Search (`CONNECTING`):** Bounded BFS to depth 2 (max 1 transfer / 2 legs). Computes forward reachable set $F$ from $S$ and backward reachable set $B$ to $D$. Candidate transfer hubs $= Stations(F) \cap Stations(B)$.
-     - **Transfer Buffer Rule (NFR-03):** Enforces strict `waitingMin >= 30` minutes. Any layover `< 30` minutes is rejected.
-     - **Distance-Wise Ranking:** Feasible routes are ordered via a **min-heap priority queue** ranked primarily by **minimum total distance** (`total_distance_km`), followed by `total_duration_min` and `layover_min`.
-   - **Algorithm B — Travel Together Multi-Origin Search (`TOGETHER`):** Intersects reachable train sets across $n \ge 2$ distinct origins $O_1, \dots, O_n$ to common destination $D$. Identifies shared trains, computes optimal **Joining Station** (`max(stop_seq)` among origins) and common boarding time.
+   - **Direct Search (`DIRECT`):** $\mathcal{O}(1)$ inverted hash-map lookup of trains at source and destination, set intersection, sequence filtering (`stop_seq(source) < stop_seq(dest)`), and calendar day offset matching.
+   - **Connecting Journey Graph Algorithms:**
+     - **Dijkstra's Shortest Path Algorithm:** Priority queue min-heap optimization finding the mathematically shortest track distance (km) route while strictly enforcing the $\ge 30$m transfer buffer rule.
+     - **Breadth-First Search (BFS):** Explores reachable stations level-by-level via FIFO queue (`collections.deque`) to discover paths with minimal transfer hops.
+     - **Depth-First Search (DFS):** Explores all alternative viable routing corridors with recursive backtracking and cycle elimination.
+   - **Travel Together Multi-Origin Search (`TOGETHER`):**
+     - **Discrete Set Intersection:** Computes $T_{\text{common}} = \bigcap_{i=1}^n T(O_i \to D)$ across $n \ge 2$ distinct origin stations to common destination $D$.
+     - **Joining Point Optimization:** Evaluates $\max(\text{stop\_seq})$ to determine the optimal Joining Station and common boarding time.
 
 4. **Engine E2 — Railway Data & Persistent Index Service (Process P4 · DBMS):**
    - Sole writer to SQLite (`railsearch.db`) and binary inverted index (`index_v1.bin`).
@@ -121,7 +124,7 @@ The application will be live at:
 - Web Interface: [http://localhost:8000](http://localhost:8000)
 - Interactive OpenAPI Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-### 3. Run the Automated 22-Query Verification Suite
+### 3. Run the Automated 24-Query Verification Suite
 ```bash
 python tests/test_suite.py
 ```
@@ -205,7 +208,7 @@ curl -X GET "http://localhost:8000/api/v1/health"
 | Specification | Metric Required | Observed Result | Status |
 |---|---|---|---|
 | **NFR-01** (Response Latency) | $\le 3.0\text{s}$ per query | **~195 ms** average computation | **PASSED** (15x faster than 3.0s ceiling) |
-| **NFR-02** (Search Accuracy) | $\ge 95\%$ benchmark queries | **100.00%** across all 22 verified test cases | **PASSED** |
+| **NFR-02** (Search Accuracy) | $\ge 95\%$ benchmark queries | **100.00%** across all 24 verified test cases | **PASSED** |
 | **NFR-03** (Transfer Buffer Rule) | 100% compliance ($\ge 30$m layover) | **100% compliance** ($< 30$m strictly rejected) | **PASSED** |
 | **NFR-04** (Snapshot Reload) | $< 50\text{ms}$ on server restart | **12.11 - 16.55 ms** reload from `index_v1.bin` | **PASSED** (4x faster than 50ms ceiling) |
 

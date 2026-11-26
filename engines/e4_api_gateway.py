@@ -180,6 +180,36 @@ async def search_travel_together_api(payload: TravelTogetherRequest):
     res["response_time_ms"] = round(elapsed_ms, 2)
     return JSONResponse(status_code=status_code, content=res)
 
+@app.get("/api/v1/search/graph-analysis")
+async def graph_analysis_api(
+    source: str = Query(..., description="Origin station code"),
+    destination: str = Query(..., description="Destination station code"),
+    date: str = Query("2026-11-10", description="Date YYYY-MM-DD")
+):
+    """
+    [Graph Algorithms Evaluation]
+    Evaluates connecting route options across Dijkstra, BFS, and DFS graph engines:
+    - Dijkstra: Shortest physical track distance (km)
+    - BFS: Minimal transfer hops level-by-level
+    - DFS: Viable alternative routing corridor exploration
+    """
+    from engines.e1_route_compute import dijkstra_shortest_path, bfs_shortest_transfers, dfs_find_all_paths
+    idx = get_gateway_index_service()
+
+    dijkstra_res = dijkstra_shortest_path(source, destination, date, idx)
+    bfs_res = bfs_shortest_transfers(source, destination, date, idx)
+    dfs_res = dfs_find_all_paths(source, destination, date, idx, max_depth=2)
+
+    return {
+        "status": "SUCCESS",
+        "source": source.upper(),
+        "destination": destination.upper(),
+        "dijkstra_shortest_path": dijkstra_res,
+        "bfs_minimum_transfers": bfs_res,
+        "dfs_corridors_count": len(dfs_res),
+        "dfs_corridors_sample": dfs_res[:5]
+    }
+
 @app.get("/api/v1/stations")
 async def get_stations_api(query: Optional[str] = Query(None, description="Filter prefix or substring")):
     all_stations = get_gateway_index_service().getAllStations()
