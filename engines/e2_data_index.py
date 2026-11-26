@@ -447,22 +447,30 @@ class DataIndexService:
             self.import_and_build_index(force_rebuild=True)
             return self.last_reload_time_ms
 
-        t0 = time.perf_counter()
-        with open(self.index_path, "rb") as f:
-            snapshot = pickle.load(f)
+        import gc
+        gc_was_enabled = gc.isenabled()
+        if gc_was_enabled:
+            gc.disable()
+        try:
+            t0 = time.perf_counter()
+            with open(self.index_path, "rb") as f:
+                snapshot = pickle.load(f)
 
-        self.stations = snapshot["stations"]
-        self.trains = snapshot["trains"]
-        self.station_trains = snapshot["station_trains"]
-        self.train_stops = snapshot["train_stops"]
-        self.train_stop_map = snapshot["train_stop_map"]
-        self.running_days = snapshot["running_days"]
+            self.stations = snapshot["stations"]
+            self.trains = snapshot["trains"]
+            self.station_trains = snapshot["station_trains"]
+            self.train_stops = snapshot["train_stops"]
+            self.train_stop_map = snapshot["train_stop_map"]
+            self.running_days = snapshot["running_days"]
 
-        elapsed_ms = (time.perf_counter() - t0) * 1000.0
-        self.last_reload_time_ms = elapsed_ms
-        self.is_initialized = True
-        logging.info(f"Snapshot reloaded from disk in {elapsed_ms:.2f} ms (< 50ms verified).")
-        return elapsed_ms
+            elapsed_ms = (time.perf_counter() - t0) * 1000.0
+            self.last_reload_time_ms = elapsed_ms
+            self.is_initialized = True
+            logging.info(f"Snapshot reloaded from disk in {elapsed_ms:.2f} ms (< 50ms verified).")
+            return elapsed_ms
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     # Read-Only Data-Access Interface
 

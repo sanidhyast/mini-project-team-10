@@ -334,11 +334,14 @@ class RailSearchTestSuite(unittest.TestCase):
 
     def test_21_registration_otp_and_login(self):
         """Query 21: User Registration flow: initiate with OTP, verify OTP, complete password, and sign in."""
-        # 1. Initiate registration
+        # 1. Initiate registration with unique email & phone
+        uid = int(time.time() * 1000)
+        email = f"kavita_{uid}@example.com"
+        mobile = f"98{str(uid)[-8:]}"
         reg_payload = {
             "full_name": "Kavita Rao",
-            "mobile": "9811223344",
-            "email": "kavita.rao@example.com",
+            "mobile": mobile,
+            "email": email,
             "dob": "1997-08-15",
             "gender": "Female"
         }
@@ -347,15 +350,23 @@ class RailSearchTestSuite(unittest.TestCase):
         data1 = res1.json()
         self.assertEqual(data1.get("status"), "SUCCESS")
         otp = data1.get("simulated_otp")
-        self.assertTrue(bool(otp), "OTP must be generated and returned in test mode")
+        if not otp:
+            # When live SMTP is enabled, retrieve the generated OTP from database
+            conn = self.index_service.get_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT otp FROM OTP_RECORD WHERE email = ?", (email,))
+            row = cur.fetchone()
+            otp = row[0] if row else None
+            conn.close()
+        self.assertTrue(bool(otp), "OTP must be generated and present in database/response")
 
         # 2. Verify OTP
-        res2 = self.client.post("/api/v1/auth/verify-otp", json={"email": "kavita.rao@example.com", "otp": otp})
+        res2 = self.client.post("/api/v1/auth/verify-otp", json={"email": email, "otp": otp})
         self.assertEqual(res2.status_code, 200)
 
         # 3. Complete registration with password
         res3 = self.client.post("/api/v1/auth/complete-registration", json={
-            "email": "kavita.rao@example.com",
+            "email": email,
             "password": "SecurePassword123",
             "confirm_password": "SecurePassword123"
         })
@@ -364,7 +375,7 @@ class RailSearchTestSuite(unittest.TestCase):
 
         # 4. Sign in as the newly registered user
         res4 = self.client.post("/api/v1/auth/login", json={
-            "identifier": "kavita.rao@example.com",
+            "identifier": email,
             "password": "SecurePassword123"
         })
         self.assertEqual(res4.status_code, 200)
