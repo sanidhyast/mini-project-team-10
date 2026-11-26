@@ -885,6 +885,8 @@ class DataIndexService:
     def rebuild_index_hot(self) -> float:
         """Re-imports and hot-reloads persistent index snapshot."""
         self.import_and_build_index(force_rebuild=True)
+        import gc
+        gc.collect()
         return self.load_snapshot()
 
 _instance: Optional[DataIndexService] = None

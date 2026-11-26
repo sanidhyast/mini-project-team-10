@@ -35,8 +35,14 @@
       <div class="nav-actions">
         <!-- Guest View -->
         <div id="auth-guest-nav" class="auth-btn-group">
-          <button type="button" class="ghost-btn" onclick="openLoginModal()">Sign In</button>
-          <button type="button" class="primary-btn-sm" onclick="openRegisterModal()">Create Account</button>
+          <button type="button" class="nav-login-btn" onclick="openLoginModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <span>LOGIN</span>
+          </button>
+          <button type="button" class="nav-register-btn" onclick="openRegisterModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <span>REGISTER</span>
+          </button>
         </div>
 
         <!-- Logged-in User View -->
@@ -60,39 +66,14 @@
 
   <!-- Main App View -->
   <main class="app-main">
-    <!-- Top Announcement Ribbon (IRCTC Beta Bar) -->
-    <div class="irctc-top-bar">
-      <div class="irctc-alert-wrap">
-        <span class="irctc-new-pill">NEW</span>
-        <span class="irctc-alert-msg">Explore the beta version of our new website and give your valuable suggestions</span>
-        <a href="javascript:void(0)" class="irctc-beta-btn">
-          <span>Explore beta now</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
-        </a>
-      </div>
-      <button type="button" class="irctc-close-btn" onclick="this.closest('.irctc-top-bar').style.display='none'">×</button>
-    </div>
-
-    <!-- Main IRCTC Hero Section with Booking Card & Vande Bharat Train -->
+    <!-- Main Indian Railways Hero Section with Clean Card & Train Image -->
     <div class="irctc-hero-banner">
       <div class="irctc-hero-content">
-        <!-- Left Booking Box with Dark Blue Tabs -->
+        <!-- Left Booking Box -->
         <div class="irctc-card-container">
-          <div class="irctc-card-nav-tabs">
-            <div class="irctc-tab-btn active">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>PNR STATUS</span>
-            </div>
-            <div class="irctc-tab-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
-              <span>CHARTS / VACANCY</span>
-            </div>
-          </div>
-
           <div class="irctc-white-box">
-            <!-- When Logged In: BOOK TICKET SEARCH FORM -->
+            <!-- When Logged In: Search Form -->
             <div id="irctc-auth-search" style="display: none;">
-              <h2 class="irctc-box-title">BOOK TICKET</h2>
               <form id="journey-form" onsubmit="handleJourneySearch(event)">
                 <div class="irctc-grid">
                   <!-- Row 1: From & To -->
@@ -186,9 +167,8 @@
               </form>
             </div>
 
-            <!-- When Logged Out: IRCTC Styled Inline Sign In -->
+            <!-- When Logged Out: Clean Inline Sign In -->
             <div id="irctc-guest-login">
-              <h2 class="irctc-box-title">BOOK TICKET</h2>
               <div class="irctc-gate-notice">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 <span>Please sign in to search and book train tickets</span>
@@ -216,9 +196,6 @@
                 </button>
 
                 <div class="irctc-guest-extras">
-                  <button type="button" class="irctc-quick-fill-btn" onclick="quickFillAndLoginAdmin()">
-                    ⚡ Quick Fill Admin (admin / admin123)
-                  </button>
                   <a href="javascript:void(0)" class="irctc-reg-link" onclick="openRegisterModal()">
                     Don't have an account? <strong>Register with OTP</strong>
                   </a>
@@ -228,9 +205,9 @@
           </div>
         </div>
 
-        <!-- Right Vande Bharat Train Hero -->
+        <!-- Right Train Hero Visual -->
         <div class="irctc-train-display">
-          <img src="/static/vande_bharat_hero.jpg" alt="Indian Railways Vande Bharat Express" class="irctc-train-photo">
+          <img src="/static/rail_train_hero.jpg" alt="Indian Railways Express Train" class="irctc-train-photo">
         </div>
       </div>
     </div>
