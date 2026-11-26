@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RailSearch — Multi-Process Railway Search Engine (Team 10)</title>
+  <title>RailSearch — Express Railway Search Engine</title>
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Header / Nav -->
+  <!-- Header / Navigation -->
   <header class="top-nav">
     <div class="nav-container">
-      <div class="brand">
+      <div class="brand" onclick="resetToHome()" style="cursor: pointer;">
         <div class="brand-logo">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="4" y="3" width="16" height="16" rx="2"/>
@@ -27,154 +27,105 @@
         </div>
         <div>
           <h1 class="brand-title">RailSearch <span class="badge team-badge">Team 10</span></h1>
-          <p class="brand-subtitle">Multi-Process Railway Search Engine & Persistent Index</p>
+          <p class="brand-subtitle">Multi-Process Railway Search Engine</p>
         </div>
       </div>
-      <div class="nav-telemetry">
-        <div class="telemetry-pill">
-          <span class="status-dot"></span>
-          <span id="gateway-status">Gateway Online</span>
+
+      <!-- Right Header: Auth & Profile Area -->
+      <div class="nav-actions">
+        <!-- Guest View -->
+        <div id="auth-guest-nav" class="auth-btn-group">
+          <button type="button" class="ghost-btn" onclick="openLoginModal()">Sign In</button>
+          <button type="button" class="primary-btn-sm" onclick="openRegisterModal()">Create Account</button>
         </div>
-        <div class="telemetry-tag" id="index-stats-tag">
-          Index: Ready (< 50ms reload)
+
+        <!-- Logged-in User View -->
+        <div id="auth-user-nav" class="user-profile-menu" style="display: none;">
+          <div class="user-avatar" id="nav-user-avatar">U</div>
+          <div class="user-info-text">
+            <span class="user-greeting">Hi, <strong id="nav-user-name">User</strong></span>
+            <span class="user-role-badge" id="nav-user-role">Passenger</span>
+          </div>
+          <button type="button" id="admin-dashboard-btn" class="admin-pill-btn" style="display: none;" onclick="openAdminModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Timetable Manager
+          </button>
+          <button type="button" class="icon-btn" title="Sign Out" onclick="handleLogout()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          </button>
         </div>
       </div>
     </div>
   </header>
 
-  <!-- Main App Shell -->
+  <!-- Main App View -->
   <main class="app-main">
+    <!-- Hero Unified Search Card -->
     <div class="search-card">
-      <!-- Tabs Switcher -->
-      <div class="tabs-header">
-        <button class="tab-btn active" id="tab-journey" onclick="switchTab('journey')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
-            <path d="m12 12 4 4-4 4"/>
-            <path d="M8 16h8"/>
-          </svg>
-          Journey Search (Direct & Connecting)
-        </button>
-        <button class="tab-btn" id="tab-together" onclick="switchTab('together')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-            <circle cx="9" cy="7" r="4"/>
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-          </svg>
-          Travel Together (Multi-Origin Group)
-        </button>
+      <div class="search-card-header">
+        <h2>Book & Search Train Routes</h2>
+        <p>Find direct expresses, smart layover connections, or coordinate trips with friends</p>
       </div>
 
-      <!-- Tab 1: Journey Search Form -->
-      <div class="tab-content active" id="content-journey">
-        <form id="journey-form" onsubmit="handleJourneySearch(event)">
-          <div class="form-row">
-            <div class="input-group">
-              <label for="src-input">From (Source Station)</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="src-input" placeholder="e.g. SBC or KSR Bengaluru" autocomplete="off" required>
-                <div class="suggestions-list" id="src-suggestions"></div>
-              </div>
+      <form id="journey-form" onsubmit="handleJourneySearch(event)">
+        <div class="search-grid">
+          <!-- Source -->
+          <div class="input-group">
+            <label for="src-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m12 8 4 4-4 4M8 12h8"/></svg>
+              From Station
+            </label>
+            <div class="autocomplete-wrapper">
+              <input type="text" id="src-input" placeholder="e.g. SBC or KSR Bengaluru" autocomplete="off" required>
+              <div class="suggestions-list" id="src-suggestions"></div>
             </div>
+          </div>
 
+          <!-- Swap Button -->
+          <div class="swap-wrapper">
             <button type="button" class="swap-btn" title="Swap stations" onclick="swapStations()">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m16 3 4 4-4 4"/>
-                <path d="M20 7H4"/>
-                <path d="m8 21-4-4 4-4"/>
-                <path d="M4 17h16"/>
+                <path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>
               </svg>
             </button>
+          </div>
 
-            <div class="input-group">
-              <label for="dst-input">To (Destination Station)</label>
-              <div class="autocomplete-wrapper">
-                <input type="text" id="dst-input" placeholder="e.g. CSMT or SMET" autocomplete="off" required>
-                <div class="suggestions-list" id="dst-suggestions"></div>
-              </div>
-            </div>
-
-            <div class="input-group date-group">
-              <label for="date-input">Journey Date</label>
-              <input type="date" id="date-input" required>
-            </div>
-
-            <div class="action-group">
-              <button type="submit" class="primary-btn" id="journey-submit-btn">
-                <span>Search Trains</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m9 18 6-6-6-6"/>
-                </svg>
-              </button>
+          <!-- Destination -->
+          <div class="input-group">
+            <label for="dst-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+              To Destination
+            </label>
+            <div class="autocomplete-wrapper">
+              <input type="text" id="dst-input" placeholder="e.g. CSMT or SMET" autocomplete="off" required>
+              <div class="suggestions-list" id="dst-suggestions"></div>
             </div>
           </div>
-        </form>
-        
-        <!-- Quick Preset Corridors -->
-        <div class="presets-row">
-          <span class="preset-label">Test Corridors:</span>
-          <button type="button" class="preset-chip" onclick="applyPreset('SBC', 'CSMT')">Direct: SBC → CSMT</button>
-          <button type="button" class="preset-chip" onclick="applyPreset('UBL', 'SMET')">Connecting Hub: UBL → SMET (via RRB)</button>
-        </div>
-      </div>
 
-      <!-- Tab 2: Travel Together Form -->
-      <div class="tab-content" id="content-together">
-        <form id="together-form" onsubmit="handleTogetherSearch(event)">
-          <div class="together-grid">
-            <div class="origins-column">
-              <div class="origins-header">
-                <label>Boarding Origins (Min 2 stations)</label>
-                <button type="button" class="secondary-btn-sm" onclick="addOriginInput()">+ Add Origin</button>
-              </div>
-              <div id="origins-container">
-                <div class="origin-input-row" data-index="0">
-                  <span class="origin-index">1</span>
-                  <div class="autocomplete-wrapper">
-                    <input type="text" class="together-origin-input" placeholder="e.g. SBC" autocomplete="off" required>
-                    <div class="suggestions-list"></div>
-                  </div>
-                </div>
-                <div class="origin-input-row" data-index="1">
-                  <span class="origin-index">2</span>
-                  <div class="autocomplete-wrapper">
-                    <input type="text" class="together-origin-input" placeholder="e.g. UBL" autocomplete="off" required>
-                    <div class="suggestions-list"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="destination-column">
-              <div class="input-group">
-                <label for="together-dst-input">Common Destination</label>
-                <div class="autocomplete-wrapper">
-                  <input type="text" id="together-dst-input" placeholder="e.g. CSMT" autocomplete="off" required>
-                  <div class="suggestions-list" id="together-dst-suggestions"></div>
-                </div>
-              </div>
-
-              <div class="input-group">
-                <label for="together-date-input">Journey Date</label>
-                <input type="date" id="together-date-input" required>
-              </div>
-
-              <button type="submit" class="primary-btn full-width" id="together-submit-btn">
-                <span>Find Common Trains</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m9 18 6-6-6-6"/>
-                </svg>
-              </button>
-            </div>
+          <!-- Date -->
+          <div class="input-group date-group">
+            <label for="date-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Departure Date
+            </label>
+            <input type="date" id="date-input" required>
           </div>
-        </form>
 
-        <div class="presets-row">
-          <span class="preset-label">Preset:</span>
-          <button type="button" class="preset-chip" onclick="applyTogetherPreset(['SBC', 'UBL'], 'CSMT')">Group: ['SBC', 'UBL'] → CSMT</button>
-          <button type="button" class="preset-chip" onclick="applyTogetherPreset(['SBC', 'DVG', 'UBL'], 'CSMT')">Group 3: ['SBC', 'DVG', 'UBL'] → CSMT</button>
+          <!-- CTA -->
+          <div class="action-group">
+            <button type="submit" class="primary-btn search-submit-btn" id="journey-submit-btn">
+              <span>Search Trains</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
         </div>
+      </form>
+      
+      <!-- Quick Test Corridor Chips -->
+      <div class="presets-row">
+        <span class="preset-label">Popular Corridors:</span>
+        <button type="button" class="preset-chip" onclick="applyPreset('SBC', 'CSMT')">Direct: SBC → CSMT (Udyan Express)</button>
+        <button type="button" class="preset-chip" onclick="applyPreset('UBL', 'SMET')">Connecting: UBL → SMET (via Birur RRB)</button>
       </div>
     </div>
 
@@ -182,55 +133,402 @@
     <div class="status-banner" id="status-banner" style="display: none;">
       <div class="banner-left">
         <span class="mode-badge" id="banner-mode-badge">DIRECT</span>
-        <span class="banner-text" id="banner-text">Showing direct train routes</span>
+        <span class="banner-text" id="banner-text">Showing train routes</span>
       </div>
       <div class="banner-right">
-        <span class="latency-pill" id="banner-latency">12 ms</span>
+        <span class="latency-pill" id="banner-latency">— ms</span>
+      </div>
+    </div>
+
+    <!-- Interactive Travel Together Drawer (Merged Seamlessly with Search) -->
+    <div class="together-merge-card" id="together-merge-card" style="display: none;">
+      <div class="together-merge-header">
+        <div class="together-merge-title">
+          <div class="together-icon-box">🤝</div>
+          <div>
+            <h3>Travel Together with Friends</h3>
+            <p>Board from different origin stations on a common train and join together at the optimal meeting station!</p>
+          </div>
+        </div>
+        <button type="button" class="ghost-btn-sm" onclick="toggleTogetherDrawer(false)">Close ×</button>
+      </div>
+
+      <div class="together-merge-body">
+        <div class="together-inputs-grid">
+          <div class="origins-section">
+            <div class="origins-bar-header">
+              <label>Boarding Stations for You & Friends (Min 2 stations)</label>
+              <button type="button" class="secondary-btn-sm" onclick="addOriginInput()">+ Add Friend's Station</button>
+            </div>
+            <div id="origins-container">
+              <!-- Dynamically rendered boarding rows -->
+            </div>
+          </div>
+
+          <div class="together-lock-section">
+            <div class="locked-param-card">
+              <span class="param-label">Common Destination</span>
+              <strong class="param-value" id="together-locked-dst">—</strong>
+            </div>
+            <div class="locked-param-card">
+              <span class="param-label">Travel Date</span>
+              <strong class="param-value" id="together-locked-date">—</strong>
+            </div>
+            <button type="button" class="accent-btn full-width" id="together-run-btn" onclick="executeTogetherSearch()">
+              <span>Find Shared Trains & Meeting Point</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- Loading State -->
     <div class="loading-state" id="loading-state" style="display: none;">
       <div class="spinner"></div>
-      <p id="loading-text">Executing Multi-Process Route Computation...</p>
-      <div class="worker-pill" id="loading-worker-info">Dispatched to E1 Worker Pool</div>
+      <p id="loading-text">Computing Routes across Worker Pool...</p>
     </div>
 
-    <!-- Results Section -->
+    <!-- Results Container -->
     <section class="results-container" id="results-container">
       <div class="empty-state" id="initial-empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <h3>Ready to Search</h3>
-        <p>Choose an origin and destination to search direct trains or bounded 2-leg connecting journeys.</p>
+        <div class="empty-icon-box">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <h3>Plan Your Rail Journey</h3>
+        <p>Select your origin, destination, and date above to find real-time train connections.</p>
       </div>
     </section>
   </main>
 
-  <!-- Telemetry Drawer / Footer -->
+  <!-- Clean Minimal Footer -->
   <footer class="app-footer">
     <div class="footer-container">
-      <div class="telemetry-item">
-        <span class="label">Engine Processes:</span>
-        <span class="value" id="proc-status">P1 (Gateway) · P2 (Supervisor) · P3 (Worker Pool) · P4 (DBMS)</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="label">Buffer Compliance:</span>
-        <span class="value highlight">100% (Strict ≥ 30m)</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="label">Index Reload:</span>
-        <span class="value highlight" id="index-reload-stat">< 50ms Persistent Snapshot</span>
-      </div>
-      <div class="telemetry-item">
-        <span class="label">Active Worker PID:</span>
-        <span class="value" id="worker-pid-stat">—</span>
+      <div>RailSearch Express — Multi-Process Persistent Search Engine · Team 10</div>
+      <div class="footer-right">
+        <span>Transfer Buffer: Strict ≥ 30m</span>
+        <span>•</span>
+        <span>Reload Speed: &lt; 50ms</span>
       </div>
     </div>
   </footer>
+
+  <!-- ================= AUTH MODALS ================= -->
+
+  <!-- Modal 1: Register / Create Account Modal -->
+  <div class="modal-backdrop" id="register-modal" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header">
+        <div>
+          <h3 id="register-modal-title">Create RailSearch Account</h3>
+          <p class="modal-subtitle" id="register-step-sub">Enter your details to register</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeRegisterModal()">✕</button>
+      </div>
+
+      <!-- Step 1: User Info Form -->
+      <form id="register-step1-form" onsubmit="handleRegisterStep1(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="reg-fullname">Full Name</label>
+            <input type="text" id="reg-fullname" placeholder="e.g. Rahul Sharma" required>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="reg-mobile">Mobile Number (10 digits)</label>
+              <input type="tel" id="reg-mobile" placeholder="e.g. 9876543210" pattern="[0-9]{10}" maxlength="10" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-dob">Date of Birth</label>
+              <input type="date" id="reg-dob" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="reg-email">Email Address</label>
+              <input type="email" id="reg-email" placeholder="e.g. rahul@example.com" required>
+            </div>
+            <div class="form-group">
+              <label for="reg-gender">Gender</label>
+              <select id="reg-gender" required>
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="ghost-btn" onclick="closeRegisterModal()">Cancel</button>
+          <button type="submit" class="primary-btn" id="reg-step1-btn">
+            <span>Send Verification OTP</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </form>
+
+      <!-- Step 2: OTP Verification -->
+      <form id="register-step2-form" style="display: none;" onsubmit="handleRegisterStep2(event)">
+        <div class="modal-body">
+          <div class="otp-instruction-card">
+            <div class="otp-mail-icon">✉️</div>
+            <p>We've sent a 6-digit verification code to <strong id="otp-display-email">your email</strong>.</p>
+            <span class="otp-hint-badge" id="otp-simulation-hint" style="display: none;">Simulated Code</span>
+          </div>
+
+          <div class="form-group" style="text-align: center;">
+            <label for="reg-otp">Enter 6-Digit Code</label>
+            <input type="text" id="reg-otp" class="otp-input-box" placeholder="••••••" maxlength="6" pattern="[0-9]{6}" required autocomplete="one-time-code">
+          </div>
+
+          <div style="text-align: center; margin-top: 0.5rem;">
+            <button type="button" class="text-link-btn" onclick="resendOtp()">Didn't receive email? Resend Code</button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="ghost-btn" onclick="backToRegisterStep1()">Back</button>
+          <button type="submit" class="primary-btn" id="reg-step2-btn">
+            <span>Verify OTP</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- Step 3: Password Setup -->
+      <form id="register-step3-form" style="display: none;" onsubmit="handleRegisterStep3(event)">
+        <div class="modal-body">
+          <div class="success-callout">
+            <span>✓ Email verified! Please set a secure password for your account.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-password">Create Password (Min 6 characters)</label>
+            <input type="password" id="reg-password" placeholder="Create password" minlength="6" required>
+          </div>
+
+          <div class="form-group">
+            <label for="reg-confirm-password">Confirm Password</label>
+            <input type="password" id="reg-confirm-password" placeholder="Re-enter password" minlength="6" required>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="submit" class="primary-btn full-width" id="reg-step3-btn">
+            <span>Complete Registration & Sign In</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 2: Login Modal -->
+  <div class="modal-backdrop" id="login-modal" style="display: none;">
+    <div class="modal-box modal-sm">
+      <div class="modal-header">
+        <div>
+          <h3>Sign In to RailSearch</h3>
+          <p class="modal-subtitle">Access your account or admin timetable portal</p>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeLoginModal()">✕</button>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="login-id">Email, Mobile or Username</label>
+            <input type="text" id="login-id" placeholder="e.g. rahul@example.com or admin" required>
+          </div>
+
+          <div class="form-group">
+            <label for="login-pass">Password</label>
+            <input type="password" id="login-pass" placeholder="Enter your password" required>
+          </div>
+
+          <div class="admin-quick-fill">
+            <span>Admin Demo:</span>
+            <button type="button" class="text-link-btn" onclick="fillAdminCredentials()">Use Admin (admin / admin123)</button>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="ghost-btn" onclick="switchToRegister()">Create Account</button>
+          <button type="submit" class="primary-btn" id="login-submit-btn">
+            <span>Sign In</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal 3: Admin Timetable Dashboard Modal -->
+  <div class="modal-backdrop" id="admin-modal" style="display: none;">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <div class="admin-title-row">
+          <span class="admin-crown-badge">ADMIN PORTAL</span>
+          <h3>Timetable & System Management</h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeAdminModal()">✕</button>
+      </div>
+
+      <!-- Admin Tab Switcher -->
+      <div class="admin-tabs-bar">
+        <button type="button" class="admin-tab active" id="admin-tab-trains" onclick="switchAdminTab('trains')">
+          🚆 Train Timetable CRUD
+        </button>
+        <button type="button" class="admin-tab" id="admin-tab-smtp" onclick="switchAdminTab('smtp')">
+          ⚙️ Gmail SMTP Settings
+        </button>
+      </div>
+
+      <!-- Admin Tab 1: Trains Management -->
+      <div class="admin-tab-content active" id="admin-view-trains">
+        <div class="admin-toolbar">
+          <div class="admin-search-wrapper">
+            <input type="text" id="admin-train-search" placeholder="Filter trains by number or name..." oninput="debounceAdminTrainSearch()">
+          </div>
+          <div class="admin-actions-group">
+            <button type="button" class="primary-btn-sm" onclick="openTrainEditorModal()">+ Add New Train</button>
+            <button type="button" class="accent-btn-sm" onclick="rebuildPersistentIndex()" id="admin-rebuild-btn" title="Rebuilds index and measures reload speed">
+              ⚡ Rebuild Index Snapshot
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-table-container">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Train No</th>
+                <th>Train Name</th>
+                <th>Source → Destination</th>
+                <th>Stops</th>
+                <th>Running Days</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="admin-trains-tbody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Admin Tab 2: SMTP Settings -->
+      <div class="admin-tab-content" id="admin-view-smtp" style="display: none;">
+        <form id="smtp-settings-form" onsubmit="handleSaveSmtp(event)">
+          <div class="smtp-intro-card">
+            <h4>Google Gmail SMTP Configuration for Email OTPs</h4>
+            <p>RailSearch uses Gmail SMTP with an <strong>App Password</strong> to send verification codes to registering passengers.</p>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="smtp-email">Gmail Address</label>
+              <input type="email" id="smtp-email" placeholder="e.g. yourname@gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label for="smtp-app-password">Gmail App Password (16 characters)</label>
+              <input type="password" id="smtp-app-password" placeholder="e.g. abcd efgh ijkl mnop" required>
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="smtp-host">SMTP Host</label>
+              <input type="text" id="smtp-host" value="smtp.gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label for="smtp-port">SMTP Port</label>
+              <input type="number" id="smtp-port" value="587" required>
+            </div>
+          </div>
+
+          <div class="admin-form-actions">
+            <button type="submit" class="primary-btn" id="save-smtp-btn">Save & Update SMTP Credentials</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 4: Add / Edit Train Modal -->
+  <div class="modal-backdrop" id="train-editor-modal" style="display: none;">
+    <div class="modal-box modal-md">
+      <div class="modal-header">
+        <h3 id="train-editor-title">Add New Train to Timetable</h3>
+        <button type="button" class="modal-close-btn" onclick="closeTrainEditorModal()">✕</button>
+      </div>
+
+      <form id="train-editor-form" onsubmit="handleSaveTrain(event)">
+        <div class="modal-body">
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="edit-train-no">Train Number</label>
+              <input type="text" id="edit-train-no" placeholder="e.g. 12080" required>
+            </div>
+            <div class="form-group">
+              <label for="edit-train-name">Train Name</label>
+              <input type="text" id="edit-train-name" placeholder="e.g. Jan Shatabdi Express" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Running Days</label>
+            <div class="days-checkbox-group">
+              <label><input type="checkbox" name="edit-days" value="MON" checked> Mon</label>
+              <label><input type="checkbox" name="edit-days" value="TUE" checked> Tue</label>
+              <label><input type="checkbox" name="edit-days" value="WED" checked> Wed</label>
+              <label><input type="checkbox" name="edit-days" value="THU" checked> Thu</label>
+              <label><input type="checkbox" name="edit-days" value="FRI" checked> Fri</label>
+              <label><input type="checkbox" name="edit-days" value="SAT" checked> Sat</label>
+              <label><input type="checkbox" name="edit-days" value="SUN" checked> Sun</label>
+            </div>
+          </div>
+
+          <div class="stops-editor-section">
+            <div class="stops-editor-header">
+              <label>Train Stops Sequence (Ordered by stop_seq)</label>
+              <button type="button" class="secondary-btn-sm" onclick="addEditorStopRow()">+ Add Stop</button>
+            </div>
+
+            <div class="stops-table-scroll">
+              <table class="stops-edit-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Station Code</th>
+                    <th>Arr Time</th>
+                    <th>Dep Time</th>
+                    <th>Day</th>
+                    <th>Dist (km)</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="train-stops-tbody">
+                  <!-- Dynamically populated stop rows -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="ghost-btn" onclick="closeTrainEditorModal()">Cancel</button>
+          <button type="submit" class="primary-btn" id="save-train-btn">Save Train to Database & Index</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
 
   <script src="/static/app.js"></script>
 </body>

@@ -330,6 +330,63 @@ class RailSearchTestSuite(unittest.TestCase):
         self.assertGreaterEqual(accuracy, 95.0, f"Accuracy must be >= 95%. Got {accuracy:.2f}%")
         self.assertLessEqual(avg_lat, 3000.0, f"Average latency must be <= 3000ms. Got {avg_lat:.2f} ms")
 
+    # ---------------- 6. Authentication & Admin Tests ----------------
+
+    def test_21_registration_otp_and_login(self):
+        """Query 21: User Registration flow: initiate with OTP, verify OTP, complete password, and sign in."""
+        # 1. Initiate registration
+        reg_payload = {
+            "full_name": "Kavita Rao",
+            "mobile": "9811223344",
+            "email": "kavita.rao@example.com",
+            "dob": "1997-08-15",
+            "gender": "Female"
+        }
+        res1 = self.client.post("/api/v1/auth/register-init", json=reg_payload)
+        self.assertEqual(res1.status_code, 200)
+        data1 = res1.json()
+        self.assertEqual(data1.get("status"), "SUCCESS")
+        otp = data1.get("simulated_otp")
+        self.assertTrue(bool(otp), "OTP must be generated and returned in test mode")
+
+        # 2. Verify OTP
+        res2 = self.client.post("/api/v1/auth/verify-otp", json={"email": "kavita.rao@example.com", "otp": otp})
+        self.assertEqual(res2.status_code, 200)
+
+        # 3. Complete registration with password
+        res3 = self.client.post("/api/v1/auth/complete-registration", json={
+            "email": "kavita.rao@example.com",
+            "password": "SecurePassword123",
+            "confirm_password": "SecurePassword123"
+        })
+        self.assertEqual(res3.status_code, 201)
+        self.assertEqual(res3.json().get("user", {}).get("role"), "USER")
+
+        # 4. Sign in as the newly registered user
+        res4 = self.client.post("/api/v1/auth/login", json={
+            "identifier": "kavita.rao@example.com",
+            "password": "SecurePassword123"
+        })
+        self.assertEqual(res4.status_code, 200)
+        self.assertEqual(res4.json().get("user", {}).get("full_name"), "Kavita Rao")
+
+    def test_22_admin_timetable_management(self):
+        """Query 22: Admin authentication (admin/admin123), train timetable listing, and snapshot rebuild."""
+        # 1. Admin login
+        res_admin = self.client.post("/api/v1/auth/login", json={"identifier": "admin", "password": "admin123"})
+        self.assertEqual(res_admin.status_code, 200)
+        self.assertEqual(res_admin.json().get("user", {}).get("role"), "ADMIN")
+
+        # 2. List trains
+        res_trains = self.client.get("/api/v1/admin/trains?limit=5")
+        self.assertEqual(res_trains.status_code, 200)
+        self.assertGreater(len(res_trains.json().get("trains", [])), 0)
+
+        # 3. Hot rebuild persistent index
+        res_rebuild = self.client.post("/api/v1/admin/rebuild-index")
+        self.assertEqual(res_rebuild.status_code, 200)
+        self.assertLess(res_rebuild.json().get("reload_ms"), 50.0, "Index reload must remain < 50ms")
+
 if __name__ == "__main__":
     import multiprocessing as mp
     mp.freeze_support()

@@ -5,10 +5,24 @@ import time
 import sqlite3
 import pickle
 import logging
+import hashlib
+import secrets
 from datetime import datetime, timezone
 from typing import Dict, List, Set, Any, Optional, Tuple
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [E2-DBMS] %(message)s")
+
+def hash_password(password: str, salt: Optional[str] = None) -> Tuple[str, str]:
+    """Hashes password with SHA-256 and unique salt."""
+    if not salt:
+        salt = secrets.token_hex(16)
+    pwd_hash = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
+    return pwd_hash, salt
+
+def verify_password(password: str, pwd_hash: str, salt: str) -> bool:
+    """Verifies a plain password against stored salt and SHA-256 hash."""
+    check_hash, _ = hash_password(password, salt)
+    return secrets.compare_digest(check_hash, pwd_hash)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -42,6 +56,14 @@ class DataIndexService:
 
         self.last_reload_time_ms: float = 0.0
         self.is_initialized: bool = False
+
+        # Ensure schema tables exist (e.g. USER, OTP_RECORD, etc.)
+        try:
+            conn = self.get_connection()
+            self.create_schema(conn, force_drop=False)
+            conn.close()
+        except Exception as e:
+            logging.debug(f"Schema check error: {e}")
 
     def get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
@@ -113,8 +135,52 @@ class DataIndexService:
                 issue_type TEXT NOT NULL,
                 detected_at TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS USER (
+                user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                full_name TEXT NOT NULL,
+                mobile TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                dob TEXT NOT NULL,
+                gender TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                role TEXT DEFAULT 'USER',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS OTP_RECORD (
+                email TEXT PRIMARY KEY,
+                otp TEXT NOT NULL,
+                full_name TEXT NOT NULL,
+                mobile TEXT NOT NULL,
+                dob TEXT NOT NULL,
+                gender TEXT NOT NULL,
+                verified INTEGER DEFAULT 0,
+                expires_at REAL NOT NULL
+            );
             """)
+        self.seed_admin_user(conn)
         logging.info("SQLite schema verified/created successfully.")
+
+    def seed_admin_user(self, conn: sqlite3.Connection):
+        """Seeds the pre-configured admin account if it does not already exist."""
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT user_id FROM USER WHERE role = 'ADMIN' OR email = 'admin@railsearch.in'")
+            row = cur.fetchone()
+            if not row:
+                now = datetime.now(timezone.utc).isoformat()
+                p_hash, salt = hash_password("admin123")
+                with conn:
+                    conn.execute(
+                        """INSERT INTO USER (full_name, mobile, email, dob, gender, password_hash, salt, role, created_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        ("System Administrator", "admin", "admin@railsearch.in", "1990-01-01", "Other", p_hash, salt, "ADMIN", now)
+                    )
+                logging.info("Pre-seeded Admin account (username: admin / admin@railsearch.in, pass: admin123).")
+        except Exception as e:
+            logging.error(f"Error seeding admin user: {e}")
 
     def log_issue(self, conn: sqlite3.Connection, entity_type: str, entity_ref: str, issue_type: str):
         now = datetime.now(timezone.utc).isoformat()
@@ -476,6 +542,342 @@ class DataIndexService:
             "index_size_mb": round(size_mb, 2),
             "snapshot_reload_ms": round(self.last_reload_time_ms, 2)
         }
+
+    # ================= Authentication & User Management =================
+
+    def create_registration_otp(self, full_name: str, mobile: str, email: str, dob: str, gender: str) -> Tuple[bool, str, Optional[str]]:
+        """Validates fields, checks duplicates, generates 6-digit OTP, stores in OTP_RECORD, and triggers email."""
+        name = full_name.strip()
+        mob = mobile.strip()
+        em = email.strip().lower()
+        d = dob.strip()
+        gen = gender.strip()
+
+        if len(name) < 2:
+            return False, "", "Full name must be at least 2 characters."
+        if not (mob.isdigit() and len(mob) == 10):
+            return False, "", "Mobile number must be exactly 10 digits."
+        if "@" not in em or "." not in em:
+            return False, "", "Invalid email address format."
+        if not d:
+            return False, "", "Date of birth is required."
+        if not gen:
+            return False, "", "Gender is required."
+
+        conn = self.get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT user_id, email, mobile FROM USER WHERE email = ? OR mobile = ?", (em, mob))
+            existing = cur.fetchone()
+            if existing:
+                if existing["email"] == em:
+                    return False, "", "An account with this email address already exists."
+                else:
+                    return False, "", "An account with this mobile number already exists."
+
+            # Generate 6-digit OTP
+            otp = f"{secrets.randbelow(900000) + 100000}"
+            expires_at = time.time() + 600.0  # 10 minutes
+
+            with conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO OTP_RECORD (email, otp, full_name, mobile, dob, gender, verified, expires_at)
+                       VALUES (?, ?, ?, ?, ?, ?, 0, ?)""",
+                    (em, otp, name, mob, d, gen, expires_at)
+                )
+
+            # Send Email
+            from engines.email_service import send_otp_email
+            email_res = send_otp_email(em, otp, name)
+
+            return True, otp, email_res.get("warning")
+        except Exception as e:
+            logging.error(f"Error in create_registration_otp: {e}")
+            return False, "", f"Failed to initiate registration: {str(e)}"
+        finally:
+            conn.close()
+
+    def verify_registration_otp(self, email: str, otp: str) -> Tuple[bool, Optional[str]]:
+        """Verifies 6-digit OTP for email within expiry window."""
+        em = email.strip().lower()
+        code = otp.strip()
+        conn = self.get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM OTP_RECORD WHERE email = ?", (em,))
+            row = cur.fetchone()
+            if not row:
+                return False, "No pending registration found for this email."
+            if time.time() > row["expires_at"]:
+                return False, "Verification OTP has expired. Please request a new code."
+            if str(row["otp"]).strip() != code:
+                return False, "Incorrect verification code. Please check and try again."
+
+            with conn:
+                conn.execute("UPDATE OTP_RECORD SET verified = 1 WHERE email = ?", (em,))
+            return True, None
+        except Exception as e:
+            logging.error(f"Error verifying OTP: {e}")
+            return False, f"Verification failed: {str(e)}"
+        finally:
+            conn.close()
+
+    def complete_registration(self, email: str, password: str, confirm_password: str) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+        """Completes registration by setting password once OTP is verified."""
+        em = email.strip().lower()
+        if password != confirm_password:
+            return False, None, "Passwords do not match."
+        if len(password) < 6:
+            return False, None, "Password must be at least 6 characters long."
+
+        conn = self.get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM OTP_RECORD WHERE email = ?", (em,))
+            row = cur.fetchone()
+            if not row or not row["verified"]:
+                return False, None, "Email has not been verified yet with OTP."
+
+            p_hash, salt = hash_password(password)
+            now = datetime.now(timezone.utc).isoformat()
+
+            with conn:
+                conn.execute(
+                    """INSERT INTO USER (full_name, mobile, email, dob, gender, password_hash, salt, role, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'USER', ?)""",
+                    (row["full_name"], row["mobile"], em, row["dob"], row["gender"], p_hash, salt, now)
+                )
+                cur.execute("SELECT user_id, full_name, mobile, email, dob, gender, role, created_at FROM USER WHERE email = ?", (em,))
+                user_row = dict(cur.fetchone())
+                conn.execute("DELETE FROM OTP_RECORD WHERE email = ?", (em,))
+
+            return True, user_row, None
+        except sqlite3.IntegrityError:
+            return False, None, "Account already exists for this email or mobile."
+        except Exception as e:
+            logging.error(f"Error completing registration: {e}")
+            return False, None, f"Failed to complete registration: {str(e)}"
+        finally:
+            conn.close()
+
+    def authenticate(self, identifier: str, password: str) -> Optional[Dict[str, Any]]:
+        """Authenticates user or admin by email, mobile, or username."""
+        ident = identifier.strip().lower()
+        conn = self.get_connection()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT user_id, full_name, mobile, email, dob, gender, password_hash, salt, role, created_at 
+                   FROM USER WHERE LOWER(email) = ? OR LOWER(mobile) = ?""",
+                (ident, ident)
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+
+            if verify_password(password, row["password_hash"], row["salt"]):
+                user_dict = dict(row)
+                del user_dict["password_hash"]
+                del user_dict["salt"]
+                return user_dict
+            return None
+        except Exception as e:
+            logging.error(f"Authentication query error: {e}")
+            return None
+        finally:
+            conn.close()
+
+    # ================= Admin Timetable Management =================
+
+    def admin_list_trains(self, search: str = "", page: int = 1, limit: int = 25) -> Dict[str, Any]:
+        """Returns paginated trains with stop counts and source/dest info."""
+        q = search.strip().upper()
+        all_train_items = []
+
+        for t_no, t_data in self.trains.items():
+            t_name = t_data.get("train_name", "")
+            if q and (q not in t_no and q not in t_name.upper()):
+                continue
+
+            stops = self.train_stops.get(t_no, [])
+            running = sorted(list(self.running_days.get(t_no, set())))
+            src = stops[0]["station_code"] if stops else "—"
+            dst = stops[-1]["station_code"] if stops else "—"
+
+            all_train_items.append({
+                "train_no": t_no,
+                "train_name": t_name,
+                "stops_count": len(stops),
+                "source": src,
+                "destination": dst,
+                "running_days": running
+            })
+
+        all_train_items.sort(key=lambda t: t["train_no"])
+        total = len(all_train_items)
+        start_idx = max(0, (page - 1) * limit)
+        end_idx = start_idx + limit
+        paginated = all_train_items[start_idx:end_idx]
+
+        return {
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "trains": paginated
+        }
+
+    def admin_get_train(self, train_no: str) -> Optional[Dict[str, Any]]:
+        """Returns full train schedule including all stops."""
+        t_no = train_no.strip()
+        if t_no not in self.trains:
+            return None
+
+        t_data = self.trains[t_no]
+        stops = self.train_stops.get(t_no, [])
+        running = sorted(list(self.running_days.get(t_no, set())))
+
+        # Enrich stops with station names
+        enriched_stops = []
+        for s in stops:
+            code = s["station_code"]
+            st_name = self.stations.get(code, {}).get("station_name", code)
+            enriched_stops.append({
+                "station_code": code,
+                "station_name": st_name,
+                "stop_seq": s["stop_seq"],
+                "arrival_time": s["arrival_time"],
+                "departure_time": s["departure_time"],
+                "day_no": s["day_no"],
+                "distance_km": s.get("distance_km", 0.0)
+            })
+
+        return {
+            "train_no": t_no,
+            "train_name": t_data.get("train_name", ""),
+            "running_days": running,
+            "stops": enriched_stops
+        }
+
+    def admin_save_train(self, train_no: str, train_name: str, running_days: List[str], stops: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Inserts or updates a train, its operating days, and its stop sequence in SQLite and active index."""
+        t_no = str(train_no).strip()
+        t_name = str(train_name).strip()
+
+        if not t_no or not t_name:
+            raise ValueError("Train number and name are required.")
+        if not stops or len(stops) < 2:
+            raise ValueError("A train must have at least 2 stops (source and destination).")
+
+        conn = self.get_connection()
+        try:
+            with conn:
+                # 1. Update TRAIN
+                conn.execute(
+                    "INSERT OR REPLACE INTO TRAIN (train_no, train_name) VALUES (?, ?)",
+                    (t_no, t_name)
+                )
+
+                # 2. Update RUNNING_DAY
+                conn.execute("DELETE FROM RUNNING_DAY WHERE train_no = ?", (t_no,))
+                valid_days = [d.strip().upper() for d in running_days if d.strip().upper() in ["MON","TUE","WED","THU","FRI","SAT","SUN"]]
+                if not valid_days:
+                    valid_days = ["MON","TUE","WED","THU","FRI","SAT","SUN"]
+                conn.executemany(
+                    "INSERT INTO RUNNING_DAY (train_no, day_of_week) VALUES (?, ?)",
+                    [(t_no, d) for d in valid_days]
+                )
+
+                # 3. Update TRAIN_STOP
+                conn.execute("DELETE FROM TRAIN_STOP WHERE train_no = ?", (t_no,))
+                clean_stops = []
+                for idx, s in enumerate(stops):
+                    st_code = s.get("station_code", "").strip().upper()
+                    seq = int(s.get("stop_seq", idx + 1))
+                    arr = s.get("arrival_time", "00:00:00").strip()
+                    dep = s.get("departure_time", "00:00:00").strip()
+                    day_no = int(s.get("day_no", 1))
+                    dist = float(s.get("distance_km", 0.0))
+
+                    clean_stops.append((t_no, st_code, seq, arr, dep, day_no, dist))
+
+                conn.executemany(
+                    """INSERT INTO TRAIN_STOP 
+                       (train_no, station_code, stop_seq, arrival_time, departure_time, day_no, distance_km)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    clean_stops
+                )
+
+            # Update In-Memory Structures
+            self.trains[t_no] = {"train_no": t_no, "train_name": t_name}
+            self.running_days[t_no] = set(valid_days)
+            
+            stop_dicts = []
+            self.train_stop_map[t_no] = {}
+            for item in clean_stops:
+                _, st_code, seq, arr, dep, day_no, dist = item
+                s_dict = {
+                    "station_code": st_code,
+                    "stop_seq": seq,
+                    "arrival_time": arr,
+                    "departure_time": dep,
+                    "day_no": day_no,
+                    "distance_km": dist
+                }
+                stop_dicts.append(s_dict)
+                self.train_stop_map[t_no][st_code] = s_dict
+
+                if st_code not in self.station_trains:
+                    self.station_trains[st_code] = []
+                # Remove existing stop if present
+                self.station_trains[st_code] = [st for st in self.station_trains[st_code] if st[0] != t_no]
+                self.station_trains[st_code].append((t_no, seq, arr, dep, day_no, dist))
+
+            stop_dicts.sort(key=lambda s: s["stop_seq"])
+            self.train_stops[t_no] = stop_dicts
+
+            # Update snapshot
+            self.save_snapshot()
+            logging.info(f"Admin saved train {t_no} ({t_name}) with {len(clean_stops)} stops.")
+            return {"status": "SUCCESS", "message": f"Train {t_no} saved successfully.", "train_no": t_no}
+
+        except Exception as e:
+            logging.error(f"Error saving train {t_no}: {e}")
+            raise
+        finally:
+            conn.close()
+
+    def admin_delete_train(self, train_no: str) -> bool:
+        """Deletes train and stops from DB and in-memory index."""
+        t_no = train_no.strip()
+        conn = self.get_connection()
+        try:
+            with conn:
+                conn.execute("DELETE FROM TRAIN_STOP WHERE train_no = ?", (t_no,))
+                conn.execute("DELETE FROM RUNNING_DAY WHERE train_no = ?", (t_no,))
+                conn.execute("DELETE FROM TRAIN WHERE train_no = ?", (t_no,))
+
+            # In-memory cleanup
+            self.trains.pop(t_no, None)
+            self.running_days.pop(t_no, None)
+            self.train_stops.pop(t_no, None)
+            self.train_stop_map.pop(t_no, None)
+
+            for st_code in self.station_trains:
+                self.station_trains[st_code] = [st for st in self.station_trains[st_code] if st[0] != t_no]
+
+            self.save_snapshot()
+            logging.info(f"Admin deleted train {t_no}.")
+            return True
+        except Exception as e:
+            logging.error(f"Error deleting train {t_no}: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def rebuild_index_hot(self) -> float:
+        """Re-imports and hot-reloads persistent index snapshot."""
+        self.import_and_build_index(force_rebuild=True)
+        return self.load_snapshot()
 
 _instance: Optional[DataIndexService] = None
 

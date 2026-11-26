@@ -54,6 +54,46 @@ class TravelTogetherRequest(BaseModel):
     date: str = Field(..., example="2026-11-10")
     simulate_timeout: Optional[bool] = False
 
+class RegisterInitRequest(BaseModel):
+    full_name: str = Field(..., example="Rahul Sharma")
+    mobile: str = Field(..., example="9876543210")
+    email: str = Field(..., example="rahul@example.com")
+    dob: str = Field(..., example="1998-05-12")
+    gender: str = Field(..., example="Male")
+
+class VerifyOtpRequest(BaseModel):
+    email: str
+    otp: str
+
+class CompleteRegistrationRequest(BaseModel):
+    email: str
+    password: str
+    confirm_password: str
+
+class LoginRequest(BaseModel):
+    identifier: str = Field(..., example="admin")
+    password: str = Field(..., example="admin123")
+
+class SmtpConfigRequest(BaseModel):
+    smtp_user: str
+    smtp_password: str
+    smtp_host: Optional[str] = "smtp.gmail.com"
+    smtp_port: Optional[int] = 587
+
+class TrainStopItem(BaseModel):
+    station_code: str
+    stop_seq: int
+    arrival_time: str
+    departure_time: str
+    day_no: Optional[int] = 1
+    distance_km: Optional[float] = 0.0
+
+class TrainSaveRequest(BaseModel):
+    train_no: str
+    train_name: str
+    running_days: List[str]
+    stops: List[TrainStopItem]
+
 # Services
 def get_gateway_index_service():
     return get_data_index_service()
@@ -145,6 +185,155 @@ async def health_check_api():
         "worker_pids": worker_pids,
         "database_and_index": stats
     }
+
+# ================= Authentication Endpoints =================
+
+@app.post("/api/v1/auth/register-init")
+async def register_init_api(payload: RegisterInitRequest):
+    svc = get_gateway_index_service()
+    ok, otp, warn = svc.create_registration_otp(
+        payload.full_name, payload.mobile, payload.email, payload.dob, payload.gender
+    )
+    if not ok:
+        return JSONResponse(status_code=400, content={"status": "ERROR", "message": warn or "Failed to initiate registration."})
+
+    from engines.email_service import get_smtp_config
+    smtp_cfg = get_smtp_config()
+    is_smtp_set = bool(smtp_cfg.get("smtp_user") and smtp_cfg.get("smtp_password"))
+
+    resp = {
+        "status": "SUCCESS",
+        "message": f"Verification code sent to {payload.email}.",
+        "email": payload.email.lower().strip(),
+        "smtp_configured": is_smtp_set
+    }
+    # If in local testing or warning present, include test OTP hint
+    if not is_smtp_set or warn:
+        resp["simulated_otp"] = otp
+        resp["hint"] = "SMTP not yet configured or in simulation mode. Use the displayed code to verify, or configure Gmail App Password in Admin."
+
+    return JSONResponse(status_code=200, content=resp)
+
+@app.post("/api/v1/auth/verify-otp")
+async def verify_otp_api(payload: VerifyOtpRequest):
+    svc = get_gateway_index_service()
+    ok, err_msg = svc.verify_registration_otp(payload.email, payload.otp)
+    if not ok:
+        return JSONResponse(status_code=400, content={"status": "ERROR", "message": err_msg})
+    return JSONResponse(status_code=200, content={"status": "SUCCESS", "message": "Email verified successfully. You may now create your password."})
+
+@app.post("/api/v1/auth/complete-registration")
+async def complete_registration_api(payload: CompleteRegistrationRequest):
+    svc = get_gateway_index_service()
+    ok, user, err_msg = svc.complete_registration(payload.email, payload.password, payload.confirm_password)
+    if not ok:
+        return JSONResponse(status_code=400, content={"status": "ERROR", "message": err_msg})
+    return JSONResponse(status_code=201, content={
+        "status": "SUCCESS",
+        "message": "Account created successfully. Please log in with your credentials.",
+        "user": user
+    })
+
+@app.post("/api/v1/auth/login")
+async def login_api(payload: LoginRequest):
+    svc = get_gateway_index_service()
+    user = svc.authenticate(payload.identifier, payload.password)
+    if not user:
+        return JSONResponse(status_code=401, content={"status": "ERROR", "message": "Invalid email/username or password."})
+
+    # Simple session token for the user/admin
+    token = f"token_{user['user_id']}_{int(time.time())}"
+    return JSONResponse(status_code=200, content={
+        "status": "SUCCESS",
+        "message": "Login successful.",
+        "token": token,
+        "user": user
+    })
+
+# ================= Admin Timetable Endpoints =================
+
+@app.get("/api/v1/admin/trains")
+async def admin_list_trains_api(
+    search: Optional[str] = Query("", description="Train number or name substring"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100)
+):
+    svc = get_gateway_index_service()
+    return svc.admin_list_trains(search=search or "", page=page, limit=limit)
+
+@app.get("/api/v1/admin/trains/{train_no}")
+async def admin_get_train_api(train_no: str):
+    svc = get_gateway_index_service()
+    train = svc.admin_get_train(train_no)
+    if not train:
+        raise HTTPException(status_code=404, detail=f"Train {train_no} not found.")
+    return train
+
+@app.post("/api/v1/admin/trains")
+async def admin_create_train_api(payload: TrainSaveRequest):
+    svc = get_gateway_index_service()
+    try:
+        stops_list = [s.model_dump() for s in payload.stops]
+        res = svc.admin_save_train(payload.train_no, payload.train_name, payload.running_days, stops_list)
+        return JSONResponse(status_code=201, content=res)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"status": "ERROR", "message": str(e)})
+
+@app.put("/api/v1/admin/trains/{train_no}")
+async def admin_update_train_api(train_no: str, payload: TrainSaveRequest):
+    svc = get_gateway_index_service()
+    try:
+        stops_list = [s.model_dump() for s in payload.stops]
+        res = svc.admin_save_train(train_no, payload.train_name, payload.running_days, stops_list)
+        return JSONResponse(status_code=200, content=res)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"status": "ERROR", "message": str(e)})
+
+@app.delete("/api/v1/admin/trains/{train_no}")
+async def admin_delete_train_api(train_no: str):
+    svc = get_gateway_index_service()
+    ok = svc.admin_delete_train(train_no)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"Failed to delete train {train_no}.")
+    return {"status": "SUCCESS", "message": f"Train {train_no} deleted successfully."}
+
+@app.post("/api/v1/admin/rebuild-index")
+async def admin_rebuild_index_api():
+    t0 = time.perf_counter()
+    svc = get_gateway_index_service()
+    reload_ms = svc.rebuild_index_hot()
+    elapsed_total = (time.perf_counter() - t0) * 1000.0
+    return {
+        "status": "SUCCESS",
+        "message": f"Persistent index rebuilt and reloaded in memory.",
+        "reload_ms": round(reload_ms, 2),
+        "total_elapsed_ms": round(elapsed_total, 2)
+    }
+
+@app.get("/api/v1/admin/smtp-config")
+async def get_smtp_config_api():
+    from engines.email_service import get_smtp_config
+    cfg = get_smtp_config()
+    # Mask password for security
+    masked_pass = "********" if cfg.get("smtp_password") else ""
+    return {
+        "smtp_host": cfg.get("smtp_host", "smtp.gmail.com"),
+        "smtp_port": cfg.get("smtp_port", 587),
+        "smtp_user": cfg.get("smtp_user", ""),
+        "has_password": bool(cfg.get("smtp_password")),
+        "smtp_password": masked_pass
+    }
+
+@app.post("/api/v1/admin/smtp-config")
+async def save_smtp_config_api(payload: SmtpConfigRequest):
+    from engines.email_service import save_smtp_config
+    res = save_smtp_config(
+        payload.smtp_user,
+        payload.smtp_password,
+        payload.smtp_host or "smtp.gmail.com",
+        payload.smtp_port or 587
+    )
+    return res
 
 # Mount static frontend
 if os.path.exists(FRONTEND_DIR):
